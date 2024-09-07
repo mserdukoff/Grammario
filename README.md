@@ -34,3 +34,6 @@ Sen geldiğinde o çoktan gitmişti.
 
 ### Data:
 I have not found any data in the desired format to train the model, so it seems like I will have to make my own data. Will continue to update this.
+
+## UPDATE 9/7/2024
+Since there are no datasets available for building a model like this on my own, I decided I am going to use a premade language model for this.

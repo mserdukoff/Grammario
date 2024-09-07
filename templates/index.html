@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language Grammar App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0 auto;
+            padding: 20px;
+            max-width: 800px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .container {
+            margin-top: 20px;
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .output {
+            margin-top: 20px;
+        }
+        .translation {
+            font-style: italic;
+            margin-top: 10px;
+            color: gray;
+        }
+        .word {
+            cursor: pointer;
+            position: relative;
+        }
+        .word:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        .tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #555;
+            color: white;
+            text-align: center;
+            border-radius: 5px;
+            padding: 5px;
+            width: 200px;
+            transition: opacity 0.3s;
+            z-index: 1;
+        }
+        .tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #555 transparent transparent transparent;
+        }
+    </style>
+</head>
+<body>
+    <h1>Language Grammar Analyzer</h1>
+
+    <form action="/grammar-check" method="post">
+        <label for="language">Select Language:</label>
+        <select id="language" name="language">
+            <option value="Turkish">Turkish</option>
+            <option value="Italian">Italian</option>
+            <option value="German">German</option>
+            <option value="Russian">Russian</option>
+        </select>
+
+        <br><br>
+
+        <label for="text">Enter Text:</label>
+        <textarea id="text" name="text" rows="4"></textarea>
+
+        <br><br>
+
+        <button type="submit">Analyze Grammar</button>
+    </form>
+
+    <div class="output">
+        {% if original_text %}
+        <h2>Original Text:</h2>
+        <p>{{ original_text }}</p>
+
+        <h2>English Translation:</h2>
+        <p class="translation">{{ english_translation }}</p>
+
+        <h2>Grammar Analysis:</h2>
+        <p>
+            <!-- Assuming grammar_analysis is split by spaces or special format -->
+            {% for word in grammar_analysis.split(' ') %}
+            <span class="word">{{ word }}
+                <span class="tooltip">{{ word.tooltip }}</span>
+            </span>
+            {% endfor %}
+        </p>
+        {% endif %}
+    </div>
+</body>
+</html>
