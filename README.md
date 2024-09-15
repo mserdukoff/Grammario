@@ -37,3 +37,6 @@ I have not found any data in the desired format to train the model, so it seems 
 
 ## UPDATE 9/7/2024
 Since there are no datasets available for building a model like this on my own, I decided I am going to use a premade language model for this.
+
+## UPDATE 9/14/2024
+I have chosen OpenAI API for this as it is the most straightforward to use and so far shows promissing results.
