@@ -1,0 +1,79 @@
+'use client'
+
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import SentenceDisplay from './SentenceDisplay'
+
+interface SentenceInputProps {
+  onAddSentence: (sentence: string, llmResponse: any) => Promise<void>
+}
+
+export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
+  const [sentence, setSentence] = useState('')
+  const [processedSentence, setProcessedSentence] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      console.log('Sending sentence for processing:', sentence)
+      const response = await fetch('/api/process-sentence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sentence }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to process sentence')
+      }
+
+      console.log('Received processed sentence:', data)
+      setProcessedSentence(data)
+      await onAddSentence(sentence, data)
+    } catch (error) {
+      console.error('Error processing sentence:', error)
+      setError(error instanceof Error ? error.message : 'An unknown error occurred')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <form onSubmit={handleSubmit} className="mb-8">
+        <Input
+          type="text"
+          value={sentence}
+          onChange={(e) => setSentence(e.target.value)}
+          placeholder="Enter a sentence"
+          className="mb-4"
+        />
+        <Button type="submit" disabled={isLoading}>
+          {isLoading ? 'Processing...' : 'Analyze'}
+        </Button>
+      </form>
+      {error && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      {isLoading && (
+        <Alert className="mb-4">
+          <AlertTitle>Processing</AlertTitle>
+          <AlertDescription>Analyzing your sentence. This may take a few moments.</AlertDescription>
+        </Alert>
+      )}
+      {processedSentence && <SentenceDisplay data={processedSentence} />}
+    </div>
+  )
+}
+
