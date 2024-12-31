@@ -9,7 +9,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No sentence provided' }, { status: 400 })
     }
 
-    const response = await fetch('http://127.0.0.1:8000/grammar/analyze', {
+    const response = await fetch(process.env.GRAMMARIO_API_URL!, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
