@@ -5,15 +5,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import SentenceDisplay from './SentenceDisplay'
-import { User } from 'firebase/auth'
 import { useToast } from "@/components/ui/use-toast"
 
 interface SentenceInputProps {
   onAddSentence: (sentence: string, llmResponse: any) => Promise<void>
-  user: User | null
 }
 
-export default function SentenceInput({ onAddSentence, user }: SentenceInputProps) {
+export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
   const [sentence, setSentence] = useState('')
   const [processedSentence, setProcessedSentence] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -22,10 +20,6 @@ export default function SentenceInput({ onAddSentence, user }: SentenceInputProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      setError('Please log in to analyze sentences.');
-      return;
-    }
     setIsLoading(true);
     setError(null);
 
@@ -79,7 +73,7 @@ export default function SentenceInput({ onAddSentence, user }: SentenceInputProp
           placeholder="Enter a sentence"
           className="mb-4"
         />
-        <Button type="submit" disabled={isLoading || !user}>
+        <Button type="submit" disabled={isLoading}>
           {isLoading ? 'Processing...' : 'Analyze'}
         </Button>
       </form>

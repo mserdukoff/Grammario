@@ -43,6 +43,7 @@ export default function Home() {
   const [sentences, setSentences] = useState<Sentence[]>([])
   const [selectedSentence, setSelectedSentence] = useState<Sentence | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -88,32 +89,27 @@ export default function Home() {
   }
 
   const addSentence = async (sentence: string, llmResponse: LLMResponse) => {
+    const newSentence: Sentence = {
+      id: Date.now().toString(), // Use a timestamp as a temporary ID
+      userId: user ? user.uid : 'anonymous',
+      sentence: sentence,
+      llmResponse: llmResponse,
+      timestamp: Timestamp.now()
+    }
+
+    setCurrentSentence(newSentence)
+
     if (user) {
       try {
-        const flattenedResponse = JSON.parse(JSON.stringify(llmResponse), (key, value) => {
-          if (Array.isArray(value)) {
-            return value.flat();
-          }
-          return value;
-        });
-
-        const docRef = await addDoc(collection(db, 'sentences'), {
-          userId: user.uid,
-          sentence: sentence,
-          llmResponse: flattenedResponse,
-          timestamp: Timestamp.now()
-        });
+        const docRef = await addDoc(collection(db, 'sentences'), newSentence);
         console.log('Sentence added with ID:', docRef.id);
         fetchSentences(user.uid);
       } catch (error) {
         console.error('Error adding sentence:', error);
         throw error;
       }
-    } else {
-      console.error('User not authenticated');
-      throw new Error('User not authenticated');
     }
-  };
+  }
 
   const deleteSentence = async (sentenceId: string) => {
     if (user) {
@@ -136,10 +132,12 @@ export default function Home() {
 
   const selectSentence = (sentence: Sentence) => {
     setSelectedSentence(sentence);
+    setCurrentSentence(null);
   }
 
   const handleNewSentence = () => {
     setSelectedSentence(null);
+    setCurrentSentence(null);
   }
 
   if (isLoading) {
@@ -153,6 +151,7 @@ export default function Home() {
         onDeleteSentence={deleteSentence}
         onSelectSentence={selectSentence}
         onNewSentence={handleNewSentence}
+        user={user}
       />
       <div className="flex-1 flex flex-col overflow-hidden h-screen">
         <Header user={user} />
@@ -163,8 +162,14 @@ export default function Home() {
               <p className="mb-4">{selectedSentence.sentence}</p>
               <SentenceDisplay data={selectedSentence.llmResponse} />
             </div>
+          ) : currentSentence ? (
+            <div>
+              <h2 className="text-2xl font-bold mb-4">Analyzed Sentence</h2>
+              <p className="mb-4">{currentSentence.sentence}</p>
+              <SentenceDisplay data={currentSentence.llmResponse} />
+            </div>
           ) : (
-            <SentenceInput onAddSentence={addSentence} user={user} />
+            <SentenceInput onAddSentence={addSentence} />
           )}
         </main>
       </div>

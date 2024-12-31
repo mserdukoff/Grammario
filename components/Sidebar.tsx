@@ -42,14 +42,20 @@ interface Sentence {
   timestamp: Timestamp
 }
 
+interface User {
+  uid: string;
+  email: string;
+}
+
 interface SidebarProps {
   sentences: Sentence[]
   onDeleteSentence: (sentenceId: string) => Promise<void>
   onSelectSentence: (sentence: Sentence) => void
   onNewSentence: () => void
+  user: User | null
 }
 
-export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence, onNewSentence }: SidebarProps) {
+export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence, onNewSentence, user }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(true)
   const [deletingSentenceId, setDeletingSentenceId] = useState<string | null>(null)
 
@@ -93,8 +99,10 @@ export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence,
           )}
         </div>
         <div className="mt-2 px-4">
-          {sentences.length === 0 && isOpen ? (
-            <p className="text-sm text-muted-foreground">No sentences yet. Add some or sign in to save your history.</p>
+          {!user && isOpen ? (
+            <p className="text-sm text-muted-foreground">Sign in to save and view your sentence history.</p>
+          ) : sentences.length === 0 && isOpen ? (
+            <p className="text-sm text-muted-foreground">No sentences yet. Add some to see your history.</p>
           ) : (
             sentences.map((sentence) => (
               <div 

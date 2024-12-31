@@ -29,15 +29,20 @@ export default function Header({ user }: HeaderProps) {
   return (
     <header className="bg-background border-b">
       <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-        {/* Removed h1 tag as per update 1 */}
-        <div className="w-full flex justify-between items-center"> {/* Updated div to be full-width as per update 2 */}
+        <div className="w-full flex justify-between items-center">
           <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
             {theme === 'dark' ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : <Moon className="h-[1.2rem] w-[1.2rem]" />}
           </Button>
           {user ? (
-            <Button onClick={handleLogout}>Logout</Button>
+            <div className="flex items-center space-x-4">
+              <span>Welcome, {user.email}</span>
+              <Button onClick={handleLogout}>Logout</Button>
+            </div>
           ) : (
-            <Login onLogin={() => console.log('User logged in')} />
+            <div className="flex items-center space-x-4">
+              <span>Login to save your history</span>
+              <Login onLogin={() => console.log('User logged in')} />
+            </div>
           )}
         </div>
       </div>
