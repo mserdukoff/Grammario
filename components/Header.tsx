@@ -35,7 +35,7 @@ export default function Header({ user }: HeaderProps) {
           </Button>
           {user ? (
             <div className="flex items-center space-x-4">
-              <span>Welcome, {user.email}</span>
+              <span>Welcome, {user.email || 'User'}</span>
               <Button onClick={handleLogout}>Logout</Button>
             </div>
           ) : (

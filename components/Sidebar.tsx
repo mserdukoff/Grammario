@@ -13,6 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { User as FirebaseUser } from 'firebase/auth'
 
 interface WordInfo {
   position: number;
@@ -42,10 +43,7 @@ interface Sentence {
   timestamp: Timestamp
 }
 
-interface User {
-  uid: string;
-  email: string;
-}
+interface User extends FirebaseUser {}
 
 interface SidebarProps {
   sentences: Sentence[]

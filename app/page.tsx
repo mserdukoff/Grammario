@@ -151,10 +151,10 @@ export default function Home() {
         onDeleteSentence={deleteSentence}
         onSelectSentence={selectSentence}
         onNewSentence={handleNewSentence}
-        user={user}
+        user={user ? { ...user, email: user.email || '' } : null}
       />
       <div className="flex-1 flex flex-col overflow-hidden h-screen">
-        <Header user={user} />
+        <Header user={user ? { ...user, email: user.email || '' } : null} />
         <main className="flex-1 p-8 overflow-auto pb-16">
           {selectedSentence ? (
             <div>
