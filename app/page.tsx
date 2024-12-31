@@ -10,12 +10,32 @@ import SentenceInput from '@/components/SentenceInput'
 import SentenceDisplay from '@/components/SentenceDisplay'
 import { Toaster } from "@/components/ui/toaster"
 
+interface WordInfo {
+  position: number;
+  part_of_speech: string;
+  root: string | null;
+  noun_components: {
+    affixes: string | null;
+  };
+  noun_case: string | null;
+  noun_case_components: string | null;
+  verb_tense: string | null;
+  verb_tense_components: string[] | null;
+}
+
+export interface LLMResponse {
+  sentence: {
+    [word: string]: WordInfo;
+  };
+  relationship_matrix: number[][] | number[] | { [key: string]: number };
+}
+
 interface Sentence {
-  id: string
-  userId: string
-  sentence: string
-  llmResponse: any
-  timestamp: Timestamp
+  id: string;
+  userId: string;
+  sentence: string;
+  llmResponse: LLMResponse;
+  timestamp: Timestamp;
 }
 
 export default function Home() {
@@ -49,7 +69,7 @@ export default function Home() {
           .reduce((acc, [word, info]) => {
             acc[word] = info
             return acc
-          }, {} as { [key: string]: any })
+          }, {} as { [key: string]: WordInfo })
         
         return {
           ...data,
@@ -67,7 +87,7 @@ export default function Home() {
     }
   }
 
-  const addSentence = async (sentence: string, llmResponse: any) => {
+  const addSentence = async (sentence: string, llmResponse: LLMResponse) => {
     if (user) {
       try {
         const flattenedResponse = JSON.parse(JSON.stringify(llmResponse), (key, value) => {

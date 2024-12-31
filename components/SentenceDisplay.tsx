@@ -4,27 +4,31 @@ import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { motion, AnimatePresence } from 'framer-motion'
 
-interface WordData {
-  position: number
-  part_of_speech: string
-  root: string | null
+interface WordInfo {
+  position: number;
+  part_of_speech: string;
+  root: string | null;
   noun_components: {
-    affixes: string | null
-  }
-  noun_case: string | null
-  noun_case_components: string | null
-  verb_tense: string | null
-  verb_tense_components: string[] | null
+    affixes: string | null;
+  };
+  noun_case: string | null;
+  noun_case_components: string | null;
+  verb_tense: string | null;
+  verb_tense_components: string[] | null;
 }
 
-interface SentenceData {
+interface LLMResponse {
   sentence: {
-    [key: string]: WordData
-  }
-  relationship_matrix: number[] | number[][] | { [key: string]: number }
+    [word: string]: WordInfo;
+  };
+  relationship_matrix: number[][] | number[] | { [key: string]: number };
 }
 
-export default function SentenceDisplay({ data }: { data: SentenceData }) {
+interface SentenceDisplayProps {
+  data: LLMResponse
+}
+
+export default function SentenceDisplay({ data }: SentenceDisplayProps) {
   const [selectedWord, setSelectedWord] = useState<string | null>(null)
   const [hoveredWord, setHoveredWord] = useState<string | null>(null)
 
@@ -37,17 +41,24 @@ export default function SentenceDisplay({ data }: { data: SentenceData }) {
     const words = Object.keys(data.sentence)
 
     if (Array.isArray(data.relationship_matrix)) {
+      if (data.relationship_matrix.length === 0) {
+        return [];
+      }
       if (Array.isArray(data.relationship_matrix[0])) {
         // Nested array format
-        return data.relationship_matrix[index]
-          .map((relation, i) => relation === 1 ? words[i] : null)
-          .filter(Boolean) as string[]
+        const row = data.relationship_matrix[index];
+        if (Array.isArray(row)) {
+          return row
+            .map((relation, i) => relation === 1 ? words[i] : null)
+            .filter((w): w is string => w !== null);
+        }
       } else {
         // Single array format
         const matrixSize = words.length
-        return words.filter((_, i) => 
-          data.relationship_matrix[index * matrixSize + i] === 1 && i !== index
-        )
+        return words.filter((_, i) => {
+          const value = (data.relationship_matrix as number[])[index * matrixSize + i]
+          return typeof value === 'number' && value === 1 && i !== index
+        })
       }
     } else if (typeof data.relationship_matrix === 'object') {
       // Object format
@@ -60,7 +71,7 @@ export default function SentenceDisplay({ data }: { data: SentenceData }) {
     return []
   }
 
-  const renderWordInfo = (wordData: WordData | null | undefined) => {
+  const renderWordInfo = (wordData: WordInfo | null | undefined) => {
     if (!wordData) {
       return <p>No word data available</p>;
     }
@@ -86,7 +97,8 @@ export default function SentenceDisplay({ data }: { data: SentenceData }) {
                       <p className="font-semibold">{formattedKey}:</p>
                       {Object.entries(value).map(([subKey, subValue]) => (
                         <p key={subKey} className="ml-4">
-                          <span className="font-medium">{subKey}:</span> {subValue}
+                          <span className="font-medium">{subKey}:</span>{' '}
+                          {typeof subValue === 'string' || typeof subValue === 'number' ? String(subValue) : JSON.stringify(subValue)}
                         </p>
                       ))}
                     </div>

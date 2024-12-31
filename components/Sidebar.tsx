@@ -14,11 +14,31 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
+interface WordInfo {
+  position: number;
+  part_of_speech: string;
+  root: string | null;
+  noun_components: {
+    affixes: string | null;
+  };
+  noun_case: string | null;
+  noun_case_components: string | null;
+  verb_tense: string | null;
+  verb_tense_components: string[] | null;
+}
+
+interface LLMResponse {
+  sentence: {
+    [word: string]: WordInfo;
+  };
+  relationship_matrix: number[][] | number[] | { [key: string]: number };
+}
+
 interface Sentence {
   id: string
   userId: string
   sentence: string
-  llmResponse: any
+  llmResponse: LLMResponse
   timestamp: Timestamp
 }
 
