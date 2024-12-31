@@ -8,7 +8,7 @@ import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
 import SentenceInput from '@/components/SentenceInput'
 import SentenceDisplay from '@/components/SentenceDisplay'
-import { AttentionAlert } from '@/components/AttentionAlert'
+import { Toaster } from "@/components/ui/toaster"
 
 interface Sentence {
   id: string
@@ -42,8 +42,26 @@ export default function Home() {
     try {
       const q = query(collection(db, 'sentences'), where('userId', '==', userId))
       const querySnapshot = await getDocs(q)
-      const sentenceList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sentence))
-      setSentences(sentenceList)
+      const sentenceList = querySnapshot.docs.map(doc => {
+        const data = doc.data() as Sentence
+        const sortedSentence = Object.entries(data.llmResponse.sentence)
+          .sort((a, b) => a[1].position - b[1].position)
+          .reduce((acc, [word, info]) => {
+            acc[word] = info
+            return acc
+          }, {} as { [key: string]: any })
+        
+        return {
+          ...data,
+          id: doc.id,
+          llmResponse: {
+            ...data.llmResponse,
+            sentence: sortedSentence
+          }
+        }
+      })
+      const sortedSentences = sentenceList.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis())
+      setSentences(sortedSentences)
     } catch (error) {
       console.error('Error fetching sentences:', error)
     }
@@ -52,30 +70,30 @@ export default function Home() {
   const addSentence = async (sentence: string, llmResponse: any) => {
     if (user) {
       try {
-        const sanitizedLLMResponse = JSON.parse(JSON.stringify(llmResponse, (key, value) => {
+        const flattenedResponse = JSON.parse(JSON.stringify(llmResponse), (key, value) => {
           if (Array.isArray(value)) {
-            return Object.assign({}, value);
+            return value.flat();
           }
           return value;
-        }));
+        });
 
         const docRef = await addDoc(collection(db, 'sentences'), {
           userId: user.uid,
           sentence: sentence,
-          llmResponse: sanitizedLLMResponse,
+          llmResponse: flattenedResponse,
           timestamp: Timestamp.now()
-        })
-        console.log('Sentence added with ID:', docRef.id)
-        fetchSentences(user.uid)
+        });
+        console.log('Sentence added with ID:', docRef.id);
+        fetchSentences(user.uid);
       } catch (error) {
-        console.error('Error adding sentence:', error)
+        console.error('Error adding sentence:', error);
         throw error;
       }
     } else {
-      console.error('User not authenticated')
+      console.error('User not authenticated');
       throw new Error('User not authenticated');
     }
-  }
+  };
 
   const deleteSentence = async (sentenceId: string) => {
     if (user) {
@@ -109,14 +127,14 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-background text-foreground">
       <Sidebar 
         sentences={sentences} 
         onDeleteSentence={deleteSentence}
         onSelectSentence={selectSentence}
         onNewSentence={handleNewSentence}
       />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden h-screen">
         <Header user={user} />
         <main className="flex-1 p-8 overflow-auto pb-16">
           {selectedSentence ? (
@@ -130,7 +148,7 @@ export default function Home() {
           )}
         </main>
       </div>
-      <AttentionAlert />
+      <Toaster />
     </div>
   )
 }

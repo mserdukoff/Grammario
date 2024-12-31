@@ -5,46 +5,69 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import SentenceDisplay from './SentenceDisplay'
+import { User } from 'firebase/auth'
+import { useToast } from "@/components/ui/use-toast"
 
 interface SentenceInputProps {
   onAddSentence: (sentence: string, llmResponse: any) => Promise<void>
+  user: User | null
 }
 
-export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
+export default function SentenceInput({ onAddSentence, user }: SentenceInputProps) {
   const [sentence, setSentence] = useState('')
   const [processedSentence, setProcessedSentence] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
+    e.preventDefault();
+    if (!user) {
+      setError('Please log in to analyze sentences.');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
 
     try {
-      console.log('Sending sentence for processing:', sentence)
+      console.log('Sending sentence for processing:', sentence);
       const response = await fetch('/api/process-sentence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sentence }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to process sentence')
+        throw new Error(data.error || 'Failed to process sentence');
       }
 
-      console.log('Received processed sentence:', data)
-      setProcessedSentence(data)
-      await onAddSentence(sentence, data)
+      console.log('Received processed sentence:', data);
+      setProcessedSentence(data);
+
+      // Flatten nested arrays in the data
+      const flattenedData = JSON.parse(JSON.stringify(data), (key, value) => {
+        if (Array.isArray(value)) {
+          return value.flat();
+        }
+        return value;
+      });
+
+      await onAddSentence(sentence, flattenedData);
+
+      toast({
+        title: "Sentence Analyzed",
+        description: "The sentence has been processed successfully. If you are unhappy with the result, try analyzing again. LLMs are not completely consistent and it is likely you will get a different result!",
+        duration: 10000,
+      })
     } catch (error) {
-      console.error('Error processing sentence:', error)
-      setError(error instanceof Error ? error.message : 'An unknown error occurred')
+      console.error('Error processing sentence:', error);
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -56,7 +79,7 @@ export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
           placeholder="Enter a sentence"
           className="mb-4"
         />
-        <Button type="submit" disabled={isLoading}>
+        <Button type="submit" disabled={isLoading || !user}>
           {isLoading ? 'Processing...' : 'Analyze'}
         </Button>
       </form>

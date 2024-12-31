@@ -21,7 +21,7 @@ interface SentenceData {
   sentence: {
     [key: string]: WordData
   }
-  relationship_matrix: number[][] | { [key: string]: number }
+  relationship_matrix: number[] | number[][] | { [key: string]: number }
 }
 
 export default function SentenceDisplay({ data }: { data: SentenceData }) {
@@ -34,14 +34,29 @@ export default function SentenceDisplay({ data }: { data: SentenceData }) {
 
   const getRelatedWords = (word: string) => {
     const index = Object.keys(data.sentence).indexOf(word)
+    const words = Object.keys(data.sentence)
+
     if (Array.isArray(data.relationship_matrix)) {
-      return data.relationship_matrix[index]
-        .map((relation, i) => relation === 1 ? Object.keys(data.sentence)[i] : null)
-        .filter(Boolean)
+      if (Array.isArray(data.relationship_matrix[0])) {
+        // Nested array format
+        return data.relationship_matrix[index]
+          .map((relation, i) => relation === 1 ? words[i] : null)
+          .filter(Boolean) as string[]
+      } else {
+        // Single array format
+        const matrixSize = words.length
+        return words.filter((_, i) => 
+          data.relationship_matrix[index * matrixSize + i] === 1 && i !== index
+        )
+      }
     } else if (typeof data.relationship_matrix === 'object') {
-      return Object.keys(data.relationship_matrix)
-        .filter(key => data.relationship_matrix[key] === 1 && key !== word)
+      // Object format
+      return Object.entries(data.relationship_matrix)
+        .filter(([key, value]) => value === 1 && key !== word)
+        .map(([key]) => key)
     }
+    
+    console.warn('Unexpected relationship_matrix format:', data.relationship_matrix)
     return []
   }
 
@@ -92,16 +107,18 @@ export default function SentenceDisplay({ data }: { data: SentenceData }) {
     )
   }
 
+  const sortedWords = Object.entries(data.sentence).sort((a, b) => a[1].position - b[1].position)
+
   return (
     <div>
       <div className="mb-4">
-        {Object.entries(data.sentence).map(([word, wordData]) => {
+        {sortedWords.map(([word, wordData]) => {
           const isRelated = hoveredWord && getRelatedWords(hoveredWord).includes(word)
           return (
             <motion.span
               key={word}
               className={`inline-block mr-2 mb-2 p-2 rounded cursor-pointer transition-colors duration-200 ${
-                isRelated ? 'bg-yellow-200' : 'bg-blue-100 hover:bg-blue-200'
+                isRelated ? 'bg-yellow-200 dark:bg-yellow-800' : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-800 dark:hover:bg-blue-700'
               }`}
               onClick={() => handleWordClick(word)}
               onMouseEnter={() => setHoveredWord(word)}
