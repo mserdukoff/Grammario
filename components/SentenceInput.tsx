@@ -65,7 +65,10 @@ export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <form onSubmit={handleSubmit} className="mb-8">
+      <form onSubmit={handleSubmit} className="mb-8 space-y-4">
+        <p className="text-sm text-muted-foreground mb-2">
+          Type a sentence in any foreign language to analyze its grammar.
+        </p>
         <Input
           type="text"
           value={sentence}
