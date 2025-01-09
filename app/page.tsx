@@ -6,9 +6,11 @@ import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp } 
 import { auth, db } from '../lib/firebase'
 import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
+import Footer from '@/components/Footer'
 import SentenceInput from '@/components/SentenceInput'
 import SentenceDisplay from '@/components/SentenceDisplay'
 import { Toaster } from "@/components/ui/toaster"
+import { useIsMobile } from '@/components/hooks/use-mobile'
 
 interface WordInfo {
   position: number;
@@ -44,6 +46,8 @@ export default function Home() {
   const [selectedSentence, setSelectedSentence] = useState<Sentence | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null)
+
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -152,10 +156,11 @@ export default function Home() {
         onSelectSentence={selectSentence}
         onNewSentence={handleNewSentence}
         user={user ? { ...user, email: user.email || '' } : null}
+        initialIsOpen={!isMobile}
       />
       <div className="flex-1 flex flex-col overflow-hidden h-screen">
         <Header user={user ? { ...user, email: user.email || '' } : null} />
-        <main className="flex-1 p-8 overflow-auto pb-16">
+        <main className="flex-1 p-8 overflow-auto">
           {selectedSentence ? (
             <div>
               <h2 className="text-2xl font-bold mb-4">Selected Sentence</h2>
@@ -172,6 +177,7 @@ export default function Home() {
             <SentenceInput onAddSentence={addSentence} />
           )}
         </main>
+        <Footer />
       </div>
       <Toaster />
     </div>

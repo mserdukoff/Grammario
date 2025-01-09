@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Logo from './Logo'
 import { Timestamp } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
-import { Trash2, Plus, History } from 'lucide-react'
+import { Trash2, Plus, History, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { User as FirebaseUser } from 'firebase/auth'
+import { useIsMobile } from '@/components/hooks/use-mobile'
 
 interface WordInfo {
   position: number;
@@ -51,11 +52,17 @@ interface SidebarProps {
   onSelectSentence: (sentence: Sentence) => void
   onNewSentence: () => void
   user: User | null
+  initialIsOpen: boolean
 }
 
-export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence, onNewSentence, user }: SidebarProps) {
-  const [isOpen, setIsOpen] = useState(true)
+export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence, onNewSentence, user, initialIsOpen }: SidebarProps) {
+  const isMobile = useIsMobile()
+  const [isOpen, setIsOpen] = useState(initialIsOpen)
   const [deletingSentenceId, setDeletingSentenceId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setIsOpen(initialIsOpen)
+  }, [initialIsOpen])
 
   const handleDelete = async (sentenceId: string) => {
     try {
@@ -71,9 +78,15 @@ export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence,
     <aside className={`bg-background border-r border-border transition-all duration-300 ${isOpen ? 'w-64' : 'w-16'} overflow-hidden flex flex-col h-screen`}>
       <div className="p-4 flex justify-between items-center">
         <Logo collapsed={!isOpen} />
-        <button onClick={() => setIsOpen(!isOpen)} className="p-2 rounded-full hover:bg-accent" aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}>
-          {isOpen ? '←' : '→'}
-        </button>
+        <Button
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-2 rounded-full hover:bg-accent"
+          aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
+          variant="ghost"
+          size="icon"
+        >
+          {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </Button>
       </div>
       <div className={`px-4 mb-4 ${isOpen ? 'w-full' : 'w-full flex justify-center'}`}>
         <Button onClick={onNewSentence} className="w-full flex items-center justify-center">
