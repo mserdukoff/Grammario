@@ -1,42 +1,42 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import { onAuthStateChanged, User } from 'firebase/auth'
-import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore'
-import { auth, db } from '../lib/firebase'
-import Sidebar from '@/components/Sidebar'
-import Header from '@/components/Header'
-import SentenceInput from '@/components/SentenceInput'
-import SentenceDisplay from '@/components/SentenceDisplay'
+import { useState, useEffect } from "react"
+import { onAuthStateChanged, type User } from "firebase/auth"
+import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp } from "firebase/firestore"
+import { auth, db } from "../lib/firebase"
+import Sidebar from "@/components/Sidebar"
+import Header from "@/components/Header"
+import SentenceInput from "@/components/SentenceInput"
+import SentenceDisplay from "@/components/SentenceDisplay"
 import { Toaster } from "@/components/ui/toaster"
-import { useIsMobile } from '@/components/hooks/use-mobile'
+import { useIsMobile } from "@/components/hooks/use-mobile"
 
 interface WordInfo {
-  position: number;
-  part_of_speech: string;
-  root: string | null;
+  position: number
+  part_of_speech: string
+  root: string | null
   noun_components: {
-    affixes: string | null;
-  };
-  noun_case: string | null;
-  noun_case_components: string | null;
-  verb_tense: string | null;
-  verb_tense_components: string[] | null;
+    affixes: string | null
+  }
+  noun_case: string | null
+  noun_case_components: string | null
+  verb_tense: string | null
+  verb_tense_components: string[] | null
 }
 
 export interface LLMResponse {
   sentence: {
-    [word: string]: WordInfo;
-  };
-  relationship_matrix: number[][] | number[] | { [key: string]: number };
+    [word: string]: WordInfo
+  }
+  relationship_matrix: number[][] | number[] | { [key: string]: number }
 }
 
 interface Sentence {
-  id: string;
-  userId: string;
-  sentence: string;
-  llmResponse: LLMResponse;
-  timestamp: Timestamp;
+  id: string
+  userId: string
+  sentence: string
+  llmResponse: LLMResponse
+  timestamp: Timestamp
 }
 
 export default function Home() {
@@ -64,52 +64,55 @@ export default function Home() {
 
   const fetchSentences = async (userId: string) => {
     try {
-      const q = query(collection(db, 'sentences'), where('userId', '==', userId))
+      const q = query(collection(db, "sentences"), where("userId", "==", userId))
       const querySnapshot = await getDocs(q)
-      const sentenceList = querySnapshot.docs.map(doc => {
+      const sentenceList = querySnapshot.docs.map((doc) => {
         const data = doc.data() as Sentence
         const sortedSentence = Object.entries(data.llmResponse.sentence)
           .sort((a, b) => a[1].position - b[1].position)
-          .reduce((acc, [word, info]) => {
-            acc[word] = info
-            return acc
-          }, {} as { [key: string]: WordInfo })
-        
+          .reduce(
+            (acc, [word, info]) => {
+              acc[word] = info
+              return acc
+            },
+            {} as { [key: string]: WordInfo },
+          )
+
         return {
           ...data,
           id: doc.id,
           llmResponse: {
             ...data.llmResponse,
-            sentence: sortedSentence
-          }
+            sentence: sortedSentence,
+          },
         }
       })
       const sortedSentences = sentenceList.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis())
       setSentences(sortedSentences)
     } catch (error) {
-      console.error('Error fetching sentences:', error)
+      console.error("Error fetching sentences:", error)
     }
   }
 
   const addSentence = async (sentence: string, llmResponse: LLMResponse) => {
     const newSentence: Sentence = {
       id: Date.now().toString(), // Use a timestamp as a temporary ID
-      userId: user ? user.uid : 'anonymous',
+      userId: user ? user.uid : "anonymous",
       sentence: sentence,
       llmResponse: llmResponse,
-      timestamp: Timestamp.now()
+      timestamp: Timestamp.now(),
     }
 
     setCurrentSentence(newSentence)
 
     if (user) {
       try {
-        const docRef = await addDoc(collection(db, 'sentences'), newSentence);
-        console.log('Sentence added with ID:', docRef.id);
-        fetchSentences(user.uid);
+        const docRef = await addDoc(collection(db, "sentences"), newSentence)
+        console.log("Sentence added with ID:", docRef.id)
+        fetchSentences(user.uid)
       } catch (error) {
-        console.error('Error adding sentence:', error);
-        throw error;
+        console.error("Error adding sentence:", error)
+        throw error
       }
     }
   }
@@ -117,30 +120,30 @@ export default function Home() {
   const deleteSentence = async (sentenceId: string) => {
     if (user) {
       try {
-        await deleteDoc(doc(db, 'sentences', sentenceId));
-        console.log('Sentence deleted with ID:', sentenceId);
-        setSentences(sentences.filter(sentence => sentence.id !== sentenceId));
+        await deleteDoc(doc(db, "sentences", sentenceId))
+        console.log("Sentence deleted with ID:", sentenceId)
+        setSentences(sentences.filter((sentence) => sentence.id !== sentenceId))
         if (selectedSentence && selectedSentence.id === sentenceId) {
-          setSelectedSentence(null);
+          setSelectedSentence(null)
         }
       } catch (error) {
-        console.error('Error deleting sentence:', error);
-        throw error;
+        console.error("Error deleting sentence:", error)
+        throw error
       }
     } else {
-      console.error('User not authenticated');
-      throw new Error('User not authenticated');
+      console.error("User not authenticated")
+      throw new Error("User not authenticated")
     }
   }
 
   const selectSentence = (sentence: Sentence) => {
-    setSelectedSentence(sentence);
-    setCurrentSentence(null);
+    setSelectedSentence(sentence)
+    setCurrentSentence(null)
   }
 
   const handleNewSentence = () => {
-    setSelectedSentence(null);
-    setCurrentSentence(null);
+    setSelectedSentence(null)
+    setCurrentSentence(null)
   }
 
   if (isLoading) {
@@ -149,16 +152,16 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-background text-foreground">
-      <Sidebar 
-        sentences={sentences} 
+      <Sidebar
+        sentences={sentences}
         onDeleteSentence={deleteSentence}
         onSelectSentence={selectSentence}
         onNewSentence={handleNewSentence}
-        user={user ? { ...user, email: user.email || '' } : null}
+        user={user}
         initialIsOpen={!isMobile}
       />
       <div className="flex-1 flex flex-col overflow-hidden h-screen">
-        <Header user={user ? { ...user, email: user.email || '' } : null} />
+        <Header user={user} />
         <main className="flex-1 p-8 pb-16 overflow-auto">
           {selectedSentence ? (
             <div>
