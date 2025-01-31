@@ -17,16 +17,27 @@ export async function POST(req: Request) {
       body: JSON.stringify({ sentence }),
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error("API Error:", errorText)
-      return NextResponse.json({ error: `API Error: ${errorText}` }, { status: response.status })
+    let responseData: any
+    const contentType = response.headers.get("content-type")
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+      responseData = await response.json()
+    } else {
+      responseData = await response.text()
     }
 
-    const data = await response.json()
-    console.log("Raw LLM output:", JSON.stringify(data, null, 2))
+    if (!response.ok) {
+      console.error("API Error:", responseData)
+      return NextResponse.json(
+        {
+          error: `API Error: ${typeof responseData === "string" ? responseData : JSON.stringify(responseData)}`,
+        },
+        { status: response.status },
+      )
+    }
 
-    return NextResponse.json(data)
+    console.log("Raw LLM output:", JSON.stringify(responseData, null, 2))
+
+    return NextResponse.json(responseData)
   } catch (error) {
     console.error("Error processing sentence:", error)
     return NextResponse.json(
