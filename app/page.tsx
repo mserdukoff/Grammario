@@ -10,6 +10,8 @@ import SentenceInput from "@/components/SentenceInput"
 import SentenceDisplay from "@/components/SentenceDisplay"
 import { Toaster } from "@/components/ui/toaster"
 import { useIsMobile } from "@/components/hooks/use-mobile"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { AlertTriangle } from "lucide-react"
 
 interface WordInfo {
   position: number
@@ -162,6 +164,13 @@ export default function Home() {
       />
       <div className="flex-1 flex flex-col overflow-hidden h-screen">
         <Header user={user} />
+        <Alert variant="destructive" className="mx-8 mt-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            The sentence analysis server is currently down for maintenance. Service should resume shortly. We apologize
+            for any inconvenience.
+          </AlertDescription>
+        </Alert>
         <main className="flex-1 p-8 pb-16 overflow-auto">
           {selectedSentence ? (
             <div>
