@@ -119,6 +119,11 @@ export default function SentenceDisplay({ data }: SentenceDisplayProps) {
     )
   }
 
+  // Guard against missing or malformed data
+  if (!data || !data.sentence || Object.keys(data.sentence).length === 0) {
+    // Only show the message if there is truly no data, otherwise render nothing
+    return null;
+  }
   const sortedWords = Object.entries(data.sentence).sort((a, b) => a[1].position - b[1].position)
 
   return (

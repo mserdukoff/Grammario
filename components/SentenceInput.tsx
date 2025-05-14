@@ -40,15 +40,8 @@ export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
       console.log("Received processed sentence:", data)
       setProcessedSentence(data)
 
-      // Flatten nested arrays in the data
-      const flattenedData = JSON.parse(JSON.stringify(data), (key, value) => {
-        if (Array.isArray(value)) {
-          return value.flat()
-        }
-        return value
-      })
-
-      await onAddSentence(sentence, flattenedData)
+      // Pass the data directly to onAddSentence, maintaining the result wrapper
+      await onAddSentence(sentence, data)
 
       toast({
         title: "Sentence Analyzed",
