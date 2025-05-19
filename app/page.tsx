@@ -13,65 +13,30 @@ import { useIsMobile } from "@/components/hooks/use-mobile"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertTriangle } from "lucide-react"
 import SentenceCanvas from "@/components/SentenceCanvas"
-import LanguageSelector from "@/components/LanguageSelector"
+import LanguageSelector, { DEMO_SENTENCES, SUPPORTED_LANGUAGES } from "@/components/LanguageSelector"
 import { Button } from "@/components/ui/button"
-
-interface WordInfo {
-  position: number
-  part_of_speech: string
-  root: string | null
-  noun_components: {
-    affixes: string | null
-  }
-  noun_case: string | null
-  noun_case_components: string | null
-  verb_tense: string | null
-  verb_tense_components: string[] | null
-}
-
-interface CanvasLLMResponse {
-  result: {
-    sentence: {
-      [word: string]: WordInfo
-    }
-    relationship_matrix: number[][]
-  }
-}
-
-interface SidebarLLMResponse {
-  sentence: {
-    [word: string]: WordInfo
-  }
-  relationship_matrix: number[][] | number[] | { [key: string]: number }
-}
-
-interface CanvasSentence {
-  id: string
-  userId: string
-  sentence: string
-  llmResponse: CanvasLLMResponse
-  timestamp: Timestamp
-}
-
-interface SidebarSentence {
-  id: string
-  userId: string
-  sentence: string
-  llmResponse: SidebarLLMResponse
-  timestamp: Timestamp
-}
+import { Sentence, LLMResponse } from "@/types"
 
 // Type adapter to convert between Canvas and Sidebar LLMResponse formats
-const adaptLLMResponse = (response: CanvasLLMResponse): SidebarLLMResponse => ({
-  sentence: response.result?.sentence || {},
-  relationship_matrix: response.result?.relationship_matrix || []
-})
+const adaptLLMResponse = (response: LLMResponse): LLMResponse => {
+  if (!response.result) {
+    return {
+      result: {
+        sentence: response.sentence || {},
+        relationship_matrix: Array.isArray(response.relationship_matrix) 
+          ? response.relationship_matrix.flat()
+          : []
+      }
+    };
+  }
+  return response;
+};
 
 // Type adapter to convert between Canvas and Sidebar Sentence formats
-const adaptSentence = (sentence: CanvasSentence): SidebarSentence => ({
+const adaptSentence = (sentence: Sentence): Sentence => ({
   ...sentence,
   llmResponse: adaptLLMResponse(sentence.llmResponse)
-})
+});
 
 // Helper to flatten a 2D array
 const flattenMatrix = (matrix: number[][]) => matrix.reduce((acc, row) => acc.concat(row), []);
@@ -86,10 +51,10 @@ const unflattenMatrix = (flat: number[], size: number) => {
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null)
-  const [sentences, setSentences] = useState<CanvasSentence[]>([])
-  const [selectedSentence, setSelectedSentence] = useState<CanvasSentence | null>(null)
+  const [sentences, setSentences] = useState<Sentence[]>([])
+  const [selectedSentence, setSelectedSentence] = useState<Sentence | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [currentSentence, setCurrentSentence] = useState<CanvasSentence | null>(null)
+  const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null)
   const [selectedLanguage, setSelectedLanguage] = useState<string>('italian')
   const [showInput, setShowInput] = useState(false)
 
@@ -113,36 +78,27 @@ export default function Home() {
     try {
       const q = query(collection(db, "sentences"), where("userId", "==", userId))
       const querySnapshot = await getDocs(q)
-      console.log("Raw Firebase data:", querySnapshot.docs.map(doc => doc.data()))
       
       const sentenceList = querySnapshot.docs.map((doc) => {
         const data = doc.data()
-        console.log("Processing document:", data)
         let llmResponse = data.llmResponse;
 
-        // Compatibility: if llmResponse is not nested under .result, wrap it
-        if (!llmResponse.result && llmResponse.sentence && llmResponse.relationship_matrix) {
-          llmResponse = { result: { sentence: llmResponse.sentence, relationship_matrix: llmResponse.relationship_matrix } };
+        // Ensure the response has the correct structure
+        if (!llmResponse?.result?.sentence) {
+          llmResponse = {
+            result: {
+              sentence: {},
+              relationship_matrix: []
+            }
+          };
         }
 
-        // Unflatten relationship_matrix if needed
-        if (llmResponse?.result?.sentence && Array.isArray(llmResponse?.result?.relationship_matrix) && typeof llmResponse.result.relationship_matrix[0] === 'number') {
-          const size = Object.keys(llmResponse.result.sentence).length;
-          llmResponse = {
-            ...llmResponse,
-            result: {
-              ...llmResponse.result,
-              relationship_matrix: unflattenMatrix(llmResponse.result.relationship_matrix, size)
-            }
-          }
-        }
         return {
           ...data,
           id: doc.id,
           llmResponse
-        } as CanvasSentence
+        } as Sentence
       })
-      console.log("Processed sentences:", sentenceList)
       
       const sortedSentences = sentenceList.sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis())
       setSentences(sortedSentences)
@@ -152,36 +108,32 @@ export default function Home() {
   }
 
   const addSentence = async (sentence: string, llmResponse: any) => {
-    console.log("Received llmResponse:", JSON.stringify(llmResponse, null, 2))
-    
     // Ensure the data structure matches what we expect
-    let relationship_matrix = llmResponse.result?.relationship_matrix || llmResponse.relationship_matrix;
+    let relationship_matrix = llmResponse.result?.result?.relationship_matrix || [];
     if (Array.isArray(relationship_matrix) && Array.isArray(relationship_matrix[0])) {
       relationship_matrix = flattenMatrix(relationship_matrix);
     }
-    const formattedResponse = {
+
+    const formattedResponse: LLMResponse = {
       result: {
-        sentence: llmResponse.result?.sentence || llmResponse.sentence,
-        relationship_matrix
+        sentence: llmResponse.result?.result?.sentence || {},
+        relationship_matrix: Array.isArray(relationship_matrix) ? relationship_matrix : []
       }
     }
-    console.log("Formatted response:", JSON.stringify(formattedResponse, null, 2))
 
-    const newSentence: CanvasSentence = {
-      id: Date.now().toString(), // Use a timestamp as a temporary ID
+    const newSentence: Sentence = {
+      id: Date.now().toString(),
       userId: user ? user.uid : "anonymous",
       sentence: sentence,
       llmResponse: formattedResponse,
       timestamp: Timestamp.now(),
     }
-    console.log("New sentence:", JSON.stringify(newSentence, null, 2))
 
     setCurrentSentence(newSentence)
 
     if (user) {
       try {
         const docRef = await addDoc(collection(db, "sentences"), newSentence)
-        console.log("Sentence added with ID:", docRef.id)
         fetchSentences(user.uid)
       } catch (error) {
         console.error("Error adding sentence:", error)
@@ -190,84 +142,36 @@ export default function Home() {
     }
   }
 
-  const handleDemoSentenceSelect = (sentence: string) => {
-    console.log("Handling demo sentence:", sentence)
-    
-    // Demo data for "Ho visto una bella ragazza"
-    const demoResponse = {
+  const handleDemoSentenceSelect = (sentence: string, llmResponse: any) => {
+    // Log the raw response for debugging
+    console.log('Raw LLM Response:', JSON.stringify(llmResponse, null, 2));
+
+    // Ensure the data structure matches what we expect
+    let relationship_matrix = llmResponse.result?.relationship_matrix || [];
+    if (Array.isArray(relationship_matrix) && Array.isArray(relationship_matrix[0])) {
+      relationship_matrix = flattenMatrix(relationship_matrix);
+    }
+
+    const formattedResponse: LLMResponse = {
       result: {
-        sentence: {
-          "Ho": {
-            position: 0,
-            part_of_speech: "verb",
-            root: "avere",
-            noun_components: { affixes: null },
-            noun_case: null,
-            noun_case_components: null,
-            verb_tense: "present",
-            verb_tense_components: ["first person", "singular"]
-          },
-          "visto": {
-            position: 1,
-            part_of_speech: "verb",
-            root: "vedere",
-            noun_components: { affixes: null },
-            noun_case: null,
-            noun_case_components: null,
-            verb_tense: "past participle",
-            verb_tense_components: null
-          },
-          "una": {
-            position: 2,
-            part_of_speech: "article",
-            root: null,
-            noun_components: { affixes: null },
-            noun_case: null,
-            noun_case_components: null,
-            verb_tense: null,
-            verb_tense_components: null
-          },
-          "bella": {
-            position: 3,
-            part_of_speech: "adjective",
-            root: "bello",
-            noun_components: { affixes: null },
-            noun_case: null,
-            noun_case_components: null,
-            verb_tense: null,
-            verb_tense_components: null
-          },
-          "ragazza": {
-            position: 4,
-            part_of_speech: "noun",
-            root: "ragazza",
-            noun_components: { affixes: null },
-            noun_case: null,
-            noun_case_components: null,
-            verb_tense: null,
-            verb_tense_components: null
-          }
-        },
-        relationship_matrix: [
-          [0, 1, 0, 0, 0],
-          [1, 0, 0, 0, 0],
-          [0, 0, 0, 1, 0],
-          [0, 0, 1, 0, 1],
-          [0, 0, 0, 1, 0]
-        ]
+        sentence: llmResponse.result?.sentence || {},
+        relationship_matrix: Array.isArray(relationship_matrix) ? relationship_matrix : []
       }
     }
-    console.log("Demo response:", demoResponse)
 
-    const newSentence: CanvasSentence = {
+    // Log the formatted response
+    console.log('Formatted LLM Response:', JSON.stringify(formattedResponse, null, 2));
+
+    const newSentence: Sentence = {
       id: Date.now().toString(),
       userId: user ? user.uid : "anonymous",
       sentence: sentence,
-      llmResponse: demoResponse,
+      llmResponse: formattedResponse,
       timestamp: Timestamp.now(),
     }
-    console.log("New demo sentence:", newSentence)
 
+    // Clear selected sentence and set current sentence
+    setSelectedSentence(null)
     setCurrentSentence(newSentence)
   }
 
@@ -275,12 +179,8 @@ export default function Home() {
     setSelectedLanguage(language)
   }
 
-  const selectSentence = (sentence: SidebarSentence) => {
-    // Find the original CanvasSentence from our state
-    const originalSentence = sentences.find(s => s.id === sentence.id)
-    if (originalSentence) {
-      setSelectedSentence(originalSentence)
-    }
+  const selectSentence = (sentence: Sentence) => {
+    setSelectedSentence(sentence)
   }
 
   const deleteSentence = async (sentenceId: string) => {
@@ -302,19 +202,7 @@ export default function Home() {
   }
 
   // Convert sentences to the format expected by Sidebar
-  const sidebarSentences = sentences.map(sentence => {
-    console.log("Converting sentence for sidebar:", sentence)
-    const adapted = adaptSentence(sentence)
-    console.log("Adapted sentence:", adapted)
-    return adapted
-  })
-
-  // Add debug logging before rendering
-  console.log("Current state:", {
-    selectedSentence,
-    currentSentence,
-    sentences: sentences.length
-  })
+  const sidebarSentences = sentences.map(sentence => sentence)
 
   if (isLoading) {
     return <div>Loading...</div>
@@ -323,7 +211,7 @@ export default function Home() {
   return (
     <div className="flex h-screen">
       <Sidebar
-        sentences={sidebarSentences}
+        sentences={sentences}
         onSelectSentence={selectSentence}
         onDeleteSentence={deleteSentence}
         onNewSentence={handleNewSentence}
@@ -336,7 +224,7 @@ export default function Home() {
           <div className="absolute inset-0">
             {/* Display the sentence text above the canvas visualization */}
             {(selectedSentence || currentSentence) && (
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-white/80 px-6 py-2 rounded shadow text-xl font-semibold">
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-background/80 dark:bg-gray-800/80 px-4 sm:px-6 py-2 rounded shadow text-lg sm:text-xl font-semibold dark:text-gray-100 max-w-[90%] sm:max-w-none text-center">
                 {(selectedSentence?.sentence || currentSentence?.sentence) ?? ''}
               </div>
             )}
@@ -355,36 +243,36 @@ export default function Home() {
             ) : null}
           </div>
           {/* Top-left toolbar for sentence controls */}
-          <div className="absolute top-4 left-4 z-30 flex gap-2 items-center">
+          <div className="absolute top-4 left-4 z-30 flex flex-col sm:flex-row gap-2 items-start sm:items-center">
             <Button 
               variant="outline" 
               size="icon"
               onClick={() => setShowInput(!showInput)}
               title="New Sentence"
+              className="dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
             >
               +
             </Button>
-            <Button 
-              variant="outline" 
-              size="icon"
-              onClick={() => handleDemoSentenceSelect('Ho visto una bella ragazza')}
-              title="Try Demo"
-            >
-              <span className="font-bold">D</span>
-            </Button>
             <LanguageSelector 
               onLanguageSelect={handleLanguageSelect}
-              onDemoSentenceSelect={() => {}}
+              onDemoSentenceSelect={handleDemoSentenceSelect}
             />
           </div>
-          {/* Collapsible input below toolbar */}
+          {/* Sentence input form */}
           {showInput && (
-            <div className="absolute top-16 left-4 z-30 w-80">
-              <SentenceInput onAddSentence={addSentence} />
+            <div className="absolute inset-0 z-40 bg-background/80 dark:bg-gray-800/80 backdrop-blur-sm">
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] sm:w-[500px]">
+                <SentenceInput
+                  onSubmit={addSentence}
+                  onCancel={() => setShowInput(false)}
+                  selectedLanguage={selectedLanguage}
+                />
+              </div>
             </div>
           )}
         </main>
       </div>
+      <Toaster />
     </div>
   )
 }

@@ -8,10 +8,12 @@ import SentenceDisplay from "./SentenceDisplay"
 import { useToast } from "@/components/ui/use-toast"
 
 interface SentenceInputProps {
-  onAddSentence: (sentence: string, llmResponse: any) => Promise<void>
+  onSubmit: (sentence: string, llmResponse: any) => Promise<void>
+  onCancel: () => void
+  selectedLanguage: string
 }
 
-export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
+export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: SentenceInputProps) {
   const [sentence, setSentence] = useState("")
   const [processedSentence, setProcessedSentence] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -24,11 +26,10 @@ export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
     setError(null)
 
     try {
-      console.log("Sending sentence for processing:", sentence)
       const response = await fetch("/api/process-sentence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sentence }),
+        body: JSON.stringify({ sentence, language: selectedLanguage }),
       })
 
       const data = await response.json()
@@ -37,11 +38,9 @@ export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
         throw new Error(data.error || "Failed to process sentence")
       }
 
-      console.log("Received processed sentence:", data)
       setProcessedSentence(data)
-
-      // Pass the data directly to onAddSentence, maintaining the result wrapper
-      await onAddSentence(sentence, data)
+      await onSubmit(sentence, data)
+      onCancel()
 
       toast({
         title: "Sentence Analyzed",
@@ -58,10 +57,10 @@ export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <form onSubmit={handleSubmit} className="mb-8 space-y-4">
-        <p className="text-sm text-muted-foreground mb-2">
-          Type a sentence in any foreign language to analyze its grammar
+    <div className="bg-background p-6 rounded-lg shadow-lg">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Type a sentence in {selectedLanguage} to analyze its grammar
         </p>
         <Input
           type="text"
@@ -70,18 +69,23 @@ export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
           placeholder="Enter a sentence"
           className="mb-4"
         />
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? "Processing..." : "Analyze"}
-        </Button>
+        <div className="flex gap-2">
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Processing..." : "Analyze"}
+          </Button>
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
       </form>
       {error && (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" className="mt-4">
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
       {isLoading && (
-        <Alert className="mb-4">
+        <Alert className="mt-4">
           <AlertTitle>Processing</AlertTitle>
           <AlertDescription>Analyzing your sentence. This may take a few moments.</AlertDescription>
         </Alert>

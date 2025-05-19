@@ -4,28 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { ZoomIn, ZoomOut, Maximize, Grid, Info } from 'lucide-react';
-
-interface WordInfo {
-  position: number;
-  part_of_speech: string;
-  root: string | null;
-  noun_components: {
-    affixes: string | null;
-  };
-  noun_case: string | null;
-  noun_case_components: string | null;
-  verb_tense: string | null;
-  verb_tense_components: string[] | null;
-}
-
-interface LLMResponse {
-  result: {
-    sentence: {
-      [word: string]: WordInfo;
-    };
-    relationship_matrix: number[][];
-  };
-}
+import { LLMResponse, WordInfo } from "@/types";
 
 interface WordCard {
   id: string;
@@ -34,7 +13,7 @@ interface WordCard {
   x: number;
   y: number;
   isExpanded: boolean;
-  isHighlighted: boolean;
+  color: string;
 }
 
 interface Relationship {
@@ -48,15 +27,32 @@ interface SentenceCanvasProps {
   sentence: string;
 }
 
+// Add color generation function
+const generateColor = (index: number) => {
+  const colors = [
+    'bg-blue-100/70',
+    'bg-green-100/70',
+    'bg-yellow-100/70',
+    'bg-purple-100/70',
+    'bg-pink-100/70',
+    'bg-indigo-100/70',
+    'bg-orange-100/70',
+    'bg-teal-100/70'
+  ];
+  return colors[index % colors.length];
+};
+
 export default function SentenceCanvas({ data, title, sentence }: SentenceCanvasProps) {
   const [cards, setCards] = useState<WordCard[]>([]);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
   const [scale, setScale] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
-  const [showGrid, setShowGrid] = useState(false);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const [relatedWords, setRelatedWords] = useState<Set<string>>(new Set());
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -75,51 +71,103 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
     return () => cancelAnimationFrame(animationFrame);
   }, []);
 
-  // Initialize cards and relationships
+  // Initialize cards without colors
   useEffect(() => {
-    console.log('Initialization effect running with data:', JSON.stringify(data, null, 2));
-    console.log('Container ref exists:', !!containerRef.current);
-    console.log('Data.result exists:', !!data?.result);
-    console.log('Data.result.sentence exists:', !!data?.result?.sentence);
-    console.log('Data.result.relationship_matrix exists:', !!data?.result?.relationship_matrix);
-
     if (!containerRef.current || !data?.result?.sentence) {
-      console.log('Early return due to missing data or container');
       return;
     }
 
     const containerWidth = containerRef.current.offsetWidth;
     const containerHeight = containerRef.current.offsetHeight;
-    console.log('Container dimensions:', { width: containerWidth, height: containerHeight });
 
     const words = Object.entries(data.result.sentence).sort((a, b) => Number(a[1].position) - Number(b[1].position));
-    console.log('Processed words:', words);
+    const matrix = data.result.relationship_matrix;
+    const n = words.length;
+    
+    const isMobile = window.innerWidth < 640;
+    
+    // Calculate card dimensions based on container size and number of words
+    let cardWidth: number, cardHeight: number, spacing: number;
+    
+    if (isMobile) {
+      // For mobile, calculate based on container height
+      const maxHeight = containerHeight * 0.8; // Use 80% of container height
+      cardHeight = Math.min(80, maxHeight / n - 10); // 10px spacing between cards
+      cardWidth = Math.min(150, containerWidth * 0.9); // 90% of container width
+      spacing = 10;
+    } else {
+      // For desktop, calculate based on container width and number of words
+      const maxWidth = containerWidth * 0.95; // Use 95% of container width
+      const minCardWidth = 120; // Minimum card width
+      const maxCardWidth = 200; // Maximum card width
+      
+      // Calculate optimal card width based on number of words
+      const optimalWidth = maxWidth / n;
+      cardWidth = Math.min(maxCardWidth, Math.max(minCardWidth, optimalWidth - 20));
+      
+      // Calculate spacing to distribute cards evenly
+      const totalCardsWidth = cardWidth * n;
+      spacing = Math.max(20, (maxWidth - totalCardsWidth) / (n - 1));
+      
+      cardHeight = Math.min(100, containerHeight * 0.8); // 80% of container height
+    }
 
-    const cardWidth = 200;
-    const spacing = 50;
-    const totalWidth = (words.length - 1) * (cardWidth + spacing);
-    const startX = (containerWidth - totalWidth) / 2;
-    const centerY = containerHeight / 2;
+    if (isMobile) {
+      // Vertical layout for mobile
+      const startY = 20; // Start from top with some padding
+      const centerX = containerWidth / 2;
 
-    const initialCards = words.map(([word, info], index) => ({
-      id: word,
-      word,
-      info,
-      x: startX + (index * (cardWidth + spacing)),
-      y: centerY,
-      isExpanded: false,
-      isHighlighted: false
-    }));
-    console.log('Created initial cards:', initialCards);
-    setCards(initialCards);
+      const initialCards = words.map(([word, info], index) => ({
+        id: word,
+        word,
+        info,
+        x: centerX,
+        y: startY + (index * (cardHeight + spacing)),
+        isExpanded: false,
+        color: 'bg-white dark:bg-gray-800'
+      }));
 
-    // Create only sequential relationships
-    const newRelationships: Relationship[] = words.slice(0, -1).map(([word], index) => ({
-      from: word,
-      to: words[index + 1][0]
-    }));
-    console.log('Created relationships:', newRelationships);
-    setRelationships(newRelationships);
+      setCards(initialCards);
+
+      // Create relationships between adjacent words in sequence (vertical)
+      const newRelationships: Relationship[] = [];
+      for (let i = 0; i < n - 1; i++) {
+        newRelationships.push({
+          from: words[i][0],
+          to: words[i + 1][0]
+        });
+      }
+      
+      setRelationships(newRelationships);
+    } else {
+      // Horizontal layout for desktop
+      const totalWidth = (cardWidth * n) + (spacing * (n - 1));
+      const startX = (containerWidth - totalWidth) / 2;
+      const centerY = containerHeight / 2;
+
+      const initialCards = words.map(([word, info], index) => ({
+        id: word,
+        word,
+        info,
+        x: startX + (index * (cardWidth + spacing)) + (cardWidth / 2),
+        y: centerY,
+        isExpanded: false,
+        color: 'bg-white dark:bg-gray-800'
+      }));
+
+      setCards(initialCards);
+
+      // Create relationships between adjacent words in sequence (horizontal)
+      const newRelationships: Relationship[] = [];
+      for (let i = 0; i < n - 1; i++) {
+        newRelationships.push({
+          from: words[i][0],
+          to: words[i + 1][0]
+        });
+      }
+      
+      setRelationships(newRelationships);
+    }
   }, [data]);
 
   // Update canvas size when container size changes
@@ -155,9 +203,58 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
     return () => window.removeEventListener('resize', updateCanvasSize);
   }, []);
 
-  // Handle zoom
-  const handleZoom = (delta: number) => {
-    setScale(prev => Math.max(0.5, Math.min(2, prev + delta * 0.1)));
+  // Handle zoom with mouse wheel
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setScale(prev => Math.max(0.5, Math.min(2, prev + delta)));
+    }
+  };
+
+  // Handle mouse panning
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      e.preventDefault();
+      setIsPanning(true);
+      setPanStart({ x: e.clientX, y: e.clientY });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isPanning) {
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+      setPanOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+      setPanStart({ x: e.clientX, y: e.clientY });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsPanning(false);
+  };
+
+  // Handle touch panning
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      setIsPanning(true);
+      setPanStart({ x: touch.clientX, y: touch.clientY });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isPanning && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - panStart.x;
+      const dy = touch.clientY - panStart.y;
+      setPanOffset(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+      setPanStart({ x: touch.clientX, y: touch.clientY });
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsPanning(false);
   };
 
   // Handle card expansion
@@ -167,40 +264,84 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
     ));
   };
 
-  // Handle card hover to highlight related words
-  const handleCardHover = (cardId: string | null) => {
-    setHoveredCard(cardId);
-    
-    if (!cardId || !data?.result?.relationship_matrix) {
-      setRelatedWords(new Set());
-      setCards(cards.map(card => ({ ...card, isHighlighted: false })));
-      return;
-    }
-
-    // Find the index of the hovered card
-    const cardIndex = cards.findIndex(card => card.id === cardId);
-    if (cardIndex === -1) return;
-
-    // Get related words from the relationship matrix
-    const related = new Set<string>();
-    const matrixRow = data.result.relationship_matrix[cardIndex];
-    
-    if (Array.isArray(matrixRow)) {
-      matrixRow.forEach((value, index) => {
-        if (value === 1) {
-          related.add(cards[index].id);
-        }
-      });
-    }
-
-    setRelatedWords(related);
-    setCards(cards.map(card => ({
-      ...card,
-      isHighlighted: related.has(card.id)
-    })));
-  };
-
   // Draw arrows
+  useEffect(() => {
+    if (!canvasRef.current || !data?.result?.relationship_matrix) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw grid
+    ctx.strokeStyle = window.matchMedia('(prefers-color-scheme: dark)').matches ? '#374151' : '#e5e7eb';
+    ctx.globalAlpha = window.matchMedia('(prefers-color-scheme: dark)').matches ? 0.2 : 0.1; // Lighter grid
+    ctx.lineWidth = 1;
+    const gridSize = 20;
+
+    // Scale the grid size by the current zoom level
+    const scaledGridSize = gridSize * scale;
+
+    for (let x = 0; x < canvas.width; x += scaledGridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
+    }
+
+    for (let y = 0; y < canvas.height; y += scaledGridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+
+    // Reset alpha for arrows
+    ctx.globalAlpha = 1;
+
+    // Draw arrows between related words
+    relationships.forEach(rel => {
+      const sourceEl = cardRefs.current.get(rel.from);
+      const targetEl = cardRefs.current.get(rel.to);
+      
+      if (!sourceEl || !targetEl) return;
+
+      const sourceRect = sourceEl.getBoundingClientRect();
+      const targetRect = targetEl.getBoundingClientRect();
+      const containerRect = containerRef.current?.getBoundingClientRect();
+      
+      if (!containerRect) return;
+
+      // Calculate positions relative to container
+      const sourceX = sourceRect.right - containerRect.left;
+      const sourceY = sourceRect.top + sourceRect.height / 2 - containerRect.top;
+      const targetX = targetRect.left - containerRect.left;
+      const targetY = targetRect.top + targetRect.height / 2 - containerRect.top;
+
+      // Draw the line with angles
+      ctx.beginPath();
+      ctx.setLineDash([6, 6]); // Dotted/dashed line
+      ctx.lineDashOffset = -dashOffset;
+      
+      // Start at right center of from card
+      ctx.moveTo(sourceX, sourceY);
+      
+      // Draw horizontal segment to align with toX
+      ctx.lineTo(targetX, sourceY);
+      
+      // Draw vertical segment to toY
+      ctx.lineTo(targetX, targetY);
+      
+      ctx.strokeStyle = window.matchMedia('(prefers-color-scheme: dark)').matches ? '#6b7280' : '#94a3b8';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]); // Reset to solid
+    });
+  }, [cards, relationships, canvasSize, scale, dashOffset]);
+
+  // Remove the duplicate drawing effect
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !canvasSize.width || !canvasSize.height) return;
@@ -210,166 +351,129 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
 
     ctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
 
-    // Draw grid if enabled
-    if (showGrid) {
-      ctx.strokeStyle = '#e5e7eb';
-      ctx.lineWidth = 1;
-      const gridSize = 20;
-      for (let x = 0; x < canvasSize.width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvasSize.height);
-        ctx.stroke();
-      }
-      for (let y = 0; y < canvasSize.height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvasSize.width, y);
-        ctx.stroke();
+    // Draw grid
+    ctx.strokeStyle = window.matchMedia('(prefers-color-scheme: dark)').matches ? '#374151' : '#e5e7eb';
+    ctx.globalAlpha = window.matchMedia('(prefers-color-scheme: dark)').matches ? 0.2 : 0.1; // Lighter grid
+    ctx.lineWidth = 1;
+    const gridSize = 20;
+    for (let x = 0; x < canvasSize.width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvasSize.height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < canvasSize.height; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvasSize.width, y);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }, [canvasSize]);
+
+  // Function to find related words
+  const findRelatedWords = (wordId: string) => {
+    const words = Object.entries(data?.result?.sentence || {}).sort((a, b) => Number(a[1].position) - Number(b[1].position));
+    const matrix = data?.result?.relationship_matrix;
+    const n = words.length;
+    
+    const related = new Set<string>();
+    const wordIndex = words.findIndex(([w]) => w === wordId);
+    
+    if (wordIndex === -1 || !matrix) return related;
+    
+    // Add the selected word
+    related.add(wordId);
+    
+    // Check relationships with all other words
+    for (let i = 0; i < n; i++) {
+      const is2DMatrix = matrix.length > 0 && Array.isArray(matrix[0]);
+      const hasRelationship = is2DMatrix
+        ? ((matrix as unknown) as number[][])[wordIndex][i] === 1
+        : ((matrix as unknown) as number[])[wordIndex * n + i] === 1;
+      
+      if (hasRelationship) {
+        related.add(words[i][0]);
       }
     }
+    
+    return related;
+  };
 
-    // Draw sequential arrows (now just animated dotted lines, no arrowheads)
-    relationships.forEach(rel => {
-      const fromElement = cardRefs.current.get(rel.from);
-      const toElement = cardRefs.current.get(rel.to);
-      
-      if (!fromElement || !toElement) return;
-
-      const fromRect = fromElement.getBoundingClientRect();
-      const toRect = toElement.getBoundingClientRect();
-      const containerRect = containerRef.current?.getBoundingClientRect();
-      
-      if (!containerRect) return;
-
-      // Start at right center of from card, end at left center of to card
-      const fromX = fromRect.right - containerRect.left;
-      const fromY = fromRect.top + fromRect.height / 2 - containerRect.top;
-      const toX = toRect.left - containerRect.left;
-      const toY = toRect.top + toRect.height / 2 - containerRect.top;
-
-      // Arrow stub length before the card
-      const stubLength = 18;
-      // Draw elbow (L-shaped) connector: horizontal, then vertical, then stub
-      ctx.beginPath();
-      ctx.setLineDash([6, 6]); // Dotted/dashed line
-      ctx.lineDashOffset = -dashOffset;
-      ctx.moveTo(fromX, fromY);
-      // Horizontal segment to align with toX
-      ctx.lineTo(toX, fromY);
-      // Vertical segment to toY
-      ctx.lineTo(toX, toY);
-      // Final stub before the card
-      let arrowBaseX = toX;
-      let arrowBaseY = toY;
-      if (Math.abs(fromY - toY) < 2) {
-        // Horizontal
-        arrowBaseX = toX - stubLength;
-        arrowBaseY = toY;
-        ctx.lineTo(arrowBaseX, arrowBaseY);
-      } else {
-        // Vertical
-        arrowBaseX = toX;
-        arrowBaseY = toY - Math.sign(toY - fromY) * stubLength;
-        ctx.lineTo(arrowBaseX, arrowBaseY);
-      }
-      ctx.strokeStyle = '#888';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.setLineDash([]); // Reset to solid
-    });
-  }, [cards, relationships, canvasSize, showGrid, scale, dashOffset]);
+  // Handle card selection
+  const handleCardSelect = (cardId: string) => {
+    if (selectedCard === cardId) {
+      setSelectedCard(null);
+      setRelatedWords(new Set());
+      setCards(cards.map(card => ({
+        ...card,
+        color: 'bg-white dark:bg-gray-800' // Fully opaque background
+      })));
+    } else {
+      const related = findRelatedWords(cardId);
+      setSelectedCard(cardId);
+      setRelatedWords(related);
+      setCards(cards.map(card => ({
+        ...card,
+        color: card.id === cardId 
+          ? 'bg-blue-100 dark:bg-blue-900' // Selected card
+          : related.has(card.id)
+            ? 'bg-red-100 dark:bg-blue-500' // Related words
+            : 'bg-white dark:bg-gray-800' // Default state
+      })));
+    }
+  };
 
   return (
-    <div 
-      ref={containerRef}
-      className="relative w-full h-full border border-gray-200 rounded-lg overflow-hidden bg-gray-50"
-      onWheel={(e) => {
-        if (e.ctrlKey) {
-          e.preventDefault();
-          handleZoom(e.deltaY > 0 ? -0.1 : 0.1);
-        }
-      }}
-    >
-      {/* Toolbar */}
-      <div className="absolute top-4 right-4 z-20 flex gap-2">
-        <Button variant="outline" size="icon" onClick={() => handleZoom(0.1)}>
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => handleZoom(-0.1)}>
-          <ZoomOut className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setShowGrid(!showGrid)}>
-          <Grid className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setScale(1)}>
-          <Maximize className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {/* Canvas for arrows */}
+    <div className="relative w-full h-full overflow-hidden">
       <canvas
         ref={canvasRef}
-        className="absolute top-0 left-0 z-10 pointer-events-none"
-        style={{ width: '100%', height: '100%' }}
+        className="absolute inset-0"
+        width={canvasSize.width}
+        height={canvasSize.height}
       />
-
-      {/* Cards */}
-      <div 
-        className="relative z-10 h-full"
-        style={{
-          transform: `scale(${scale})`,
-          transformOrigin: 'center center'
-        }}
+      <div
+        ref={containerRef}
+        className="absolute inset-0"
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         {cards.map((card) => (
           <motion.div
             key={card.id}
+            ref={(el) => {
+              if (el) cardRefs.current.set(card.id, el);
+            }}
             className="absolute"
-            initial={false}
-            style={{ x: card.x, y: card.y }}
+            style={{
+              x: card.x,
+              y: card.y,
+              scale: scale,
+              transform: `translate(-50%, -50%) scale(${scale})`,
+            }}
             drag
             dragMomentum={false}
             dragElastic={0}
-            dragConstraints={containerRef}
             onDragStart={() => setIsDragging(true)}
-            onDragEnd={(_, info) => {
-              setIsDragging(false);
-              setCards(cards.map(c => 
-                c.id === card.id ? { ...c, x: info.point.x, y: info.point.y } : c
-              ));
-            }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onHoverStart={() => handleCardHover(card.id)}
-            onHoverEnd={() => handleCardHover(null)}
-            ref={(el) => {
-              if (el) {
-                cardRefs.current.set(card.id, el);
-                requestAnimationFrame(() => {
-                  const canvas = canvasRef.current;
-                  if (canvas) {
-                    const ctx = canvas.getContext('2d');
-                    if (ctx) {
-                      ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    }
-                  }
-                });
-              }
-            }}
+            onDragEnd={() => setIsDragging(false)}
           >
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Card 
-                    className={`w-[200px] shadow-lg hover:shadow-xl transition-shadow ${
-                      selectedCard === card.id ? 'ring-2 ring-blue-500' : ''
-                    } ${card.isHighlighted ? 'bg-blue-50' : ''}`}
-                    onClick={() => setSelectedCard(card.id === selectedCard ? null : card.id)}
+                    className={`w-[150px] sm:w-[200px] shadow-lg hover:shadow-xl transition-shadow ${
+                      selectedCard === card.id ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
+                    } ${card.color}`}
+                    onClick={() => handleCardSelect(card.id)}
                   >
-                    <CardContent className="p-4">
+                    <CardContent className="p-3 sm:p-4">
                       <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-lg font-bold">{card.word}</h3>
+                        <h3 className="text-base sm:text-lg font-bold dark:text-gray-100">{card.word}</h3>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -379,27 +483,53 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
                             toggleCardExpansion(card.id);
                           }}
                         >
-                          <Info className="h-4 w-4" />
+                          <Info className="h-4 w-4 dark:text-gray-400" />
                         </Button>
                       </div>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
                         {card.info.part_of_speech}
                       </p>
                       {card.isExpanded && (
                         <div className="mt-2 space-y-1">
                           {card.info.root && (
-                            <p className="text-sm text-gray-500">
+                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                               Root: {card.info.root}
                             </p>
                           )}
-                          {card.info.verb_tense && (
-                            <p className="text-sm text-gray-500">
-                              Tense: {card.info.verb_tense}
+                          {card.info.gender && (
+                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                              Gender: {card.info.gender}
                             </p>
                           )}
+                          {card.info.verb_tense && (
+                            <>
+                              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                Tense: {card.info.verb_tense}
+                              </p>
+                              {card.info.verb_tense_components && (
+                                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                  Components: {Array.isArray(card.info.verb_tense_components) 
+                                    ? card.info.verb_tense_components.join(', ')
+                                    : card.info.verb_tense_components}
+                                </p>
+                              )}
+                            </>
+                          )}
                           {card.info.noun_case && (
-                            <p className="text-sm text-gray-500">
-                              Case: {card.info.noun_case}
+                            <>
+                              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                Case: {card.info.noun_case}
+                              </p>
+                              {card.info.noun_case_components && (
+                                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                  Case Components: {card.info.noun_case_components}
+                                </p>
+                              )}
+                            </>
+                          )}
+                          {card.info.noun_components?.affixes && (
+                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                              Affixes: {card.info.noun_components.affixes}
                             </p>
                           )}
                         </div>
@@ -407,7 +537,7 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
                     </CardContent>
                   </Card>
                 </TooltipTrigger>
-                <TooltipContent>
+                <TooltipContent className="dark:bg-gray-800 dark:text-gray-100">
                   <p>Position: {card.info.position + 1}</p>
                   {card.info.root && <p>Root: {card.info.root}</p>}
                   <p>Part of Speech: {card.info.part_of_speech}</p>

@@ -15,11 +15,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import { User as FirebaseUser } from 'firebase/auth'
 import { useIsMobile } from '@/components/hooks/use-mobile'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Sentence } from '@/types'
 
 interface WordInfo {
   position: number;
   part_of_speech: string;
   root: string | null;
+  gender: string | null;
   noun_components: {
     affixes: string | null;
   };
@@ -30,29 +33,21 @@ interface WordInfo {
 }
 
 interface LLMResponse {
-  sentence: {
-    [word: string]: WordInfo;
+  result: {
+    sentence: {
+      [word: string]: WordInfo;
+    };
+    relationship_matrix: number[][];
   };
-  relationship_matrix: number[][] | number[] | { [key: string]: number };
 }
-
-interface Sentence {
-  id: string
-  userId: string
-  sentence: string
-  llmResponse: LLMResponse
-  timestamp: Timestamp
-}
-
-interface User extends FirebaseUser {}
 
 interface SidebarProps {
-  sentences: Sentence[]
-  onDeleteSentence: (sentenceId: string) => Promise<void>
-  onSelectSentence: (sentence: Sentence) => void
-  onNewSentence: () => void
-  user: User | null
-  initialIsOpen: boolean
+  sentences: Sentence[];
+  onDeleteSentence: (sentenceId: string) => Promise<void>;
+  onSelectSentence: (sentence: Sentence) => void;
+  onNewSentence: () => void;
+  user: FirebaseUser | null;
+  initialIsOpen: boolean;
 }
 
 export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence, onNewSentence, user, initialIsOpen }: SidebarProps) {
@@ -88,17 +83,6 @@ export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence,
           {isOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </Button>
       </div>
-      <div className={`px-4 mb-4 ${isOpen ? 'w-full' : 'w-full flex justify-center'}`}>
-        <Button onClick={onNewSentence} className="w-full flex items-center justify-center">
-          {isOpen ? (
-            <>
-              <Plus className="mr-2 h-4 w-4" /> New Sentence
-            </>
-          ) : (
-            <Plus className="h-4 w-4" />
-          )}
-        </Button>
-      </div>
       <nav className="flex-grow overflow-y-auto">
         <div className={`px-4 py-2 ${isOpen ? 'block' : 'flex justify-center'}`}>
           {isOpen ? (
@@ -117,15 +101,15 @@ export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence,
           ) : (
             sentences.map((sentence) => (
               <div 
-                key={sentence.id} 
-                className={`py-2 flex justify-between items-center cursor-pointer hover:bg-accent rounded-md`}
+                key={sentence.id}
+                className="flex items-center p-2 hover:bg-accent rounded-lg cursor-pointer"
                 onClick={() => onSelectSentence(sentence)}
               >
                 {isOpen ? (
                   <>
                     <div className="flex-grow mr-2 overflow-hidden">
                       <p className="text-sm truncate text-foreground">
-                        {Object.entries(sentence.llmResponse.sentence)
+                        {Object.entries(sentence.llmResponse.result?.sentence || sentence.llmResponse.sentence || {})
                           .sort((a, b) => a[1].position - b[1].position)
                           .map(([word]) => word)
                           .join(' ')}
