@@ -18,23 +18,26 @@ export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: 
   const [processedSentence, setProcessedSentence] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [rawResponse, setRawResponse] = useState<string | null>(null)
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
+    setRawResponse(null)
 
     try {
       const response = await fetch("/api/process-sentence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sentence, language: selectedLanguage }),
+        body: JSON.stringify({ sentence }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
+        setRawResponse(data.raw || null)
         throw new Error(data.error || "Failed to process sentence")
       }
 
@@ -81,7 +84,30 @@ export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: 
       {error && (
         <Alert variant="destructive" className="mt-4">
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error}
+            {rawResponse && (
+              <div className="mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const blob = new Blob([rawResponse], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'llm-response.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  View Raw LLM Output
+                </Button>
+              </div>
+            )}
+          </AlertDescription>
         </Alert>
       )}
       {isLoading && (

@@ -33,13 +33,12 @@ interface LLMResponse {
 
 export async function POST(req: NextRequest) {
   try {
-    const { sentence, language } = await req.json();
+    const { sentence } = await req.json();
     if (!sentence) {
       return NextResponse.json({ error: 'No sentence provided' }, { status: 400 });
     }
     // Compose the prompt for the LLM
     const userPrompt = `Sentence: "${sentence}"
-Language: ${language || 'unknown'}
 Please break down the sentence as described.`;
 
     const completion = await openai.chat.completions.create({
@@ -55,7 +54,6 @@ Please break down the sentence as described.`;
     
     // Log the raw response to server console
     console.log('\n=== New LLM Response ===');
-    console.log('Language:', language);
     console.log('Sentence:', sentence);
     console.log('Raw Response:', raw);
     console.log('=====================\n');
@@ -81,6 +79,8 @@ Please break down the sentence as described.`;
       // Convert words array to sentence object
       if (parsed.words && Array.isArray(parsed.words)) {
         parsed.words.forEach((word: WordAnalysis) => {
+          // Create a unique key using both the word and its position
+          const key = `${word.text}_${word.position}`;
           const wordInfo = {
             position: word.position,
             part_of_speech: word.part_of_speech,
@@ -94,7 +94,7 @@ Please break down the sentence as described.`;
             verb_tense: word.morphology?.verb_tense || null,
             verb_tense_components: word.morphology?.tense_markers || null
           };
-          transformedResponse.result.sentence[word.text] = wordInfo;
+          transformedResponse.result.sentence[key] = wordInfo;
         });
       }
       

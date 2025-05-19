@@ -116,16 +116,18 @@ export default function SentenceDisplay({ data }: SentenceDisplayProps) {
   return (
     <div>
       <div className="mb-4">
-        {sortedWords.map(([word, wordData]) => {
-          const isRelated = hoveredWord && getRelatedWords(hoveredWord).includes(word)
+        {sortedWords.map(([wordKey, wordData]) => {
+          // Extract the word from the key (remove position suffix)
+          const word = wordKey.split('_')[0];
+          const isRelated = hoveredWord && getRelatedWords(hoveredWord).includes(wordKey)
           return (
             <motion.span
-              key={word}
+              key={wordKey}
               className={`inline-block mr-2 mb-2 p-2 rounded cursor-pointer transition-colors duration-200 ${
                 isRelated ? 'bg-yellow-200 dark:bg-yellow-800' : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-800 dark:hover:bg-blue-700'
               }`}
-              onClick={() => handleWordClick(word)}
-              onMouseEnter={() => setHoveredWord(word)}
+              onClick={() => handleWordClick(wordKey)}
+              onMouseEnter={() => setHoveredWord(wordKey)}
               onMouseLeave={() => setHoveredWord(null)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}

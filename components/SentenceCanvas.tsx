@@ -443,109 +443,113 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {cards.map((card) => (
-          <motion.div
-            key={card.id}
-            ref={(el) => {
-              if (el) cardRefs.current.set(card.id, el);
-            }}
-            className="absolute"
-            style={{
-              x: card.x,
-              y: card.y,
-              scale: scale,
-              transform: `translate(-50%, -50%) scale(${scale})`,
-            }}
-            drag
-            dragMomentum={false}
-            dragElastic={0}
-            onDragStart={() => setIsDragging(true)}
-            onDragEnd={() => setIsDragging(false)}
-          >
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Card 
-                    className={`w-[150px] sm:w-[200px] shadow-lg hover:shadow-xl transition-shadow ${
-                      selectedCard === card.id ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
-                    } ${card.color}`}
-                    onClick={() => handleCardSelect(card.id)}
-                  >
-                    <CardContent className="p-3 sm:p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="text-base sm:text-lg font-bold dark:text-gray-100">{card.word}</h3>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleCardExpansion(card.id);
-                          }}
-                        >
-                          <Info className="h-4 w-4 dark:text-gray-400" />
-                        </Button>
-                      </div>
-                      <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
-                        {card.info.part_of_speech}
-                      </p>
-                      {card.isExpanded && (
-                        <div className="mt-2 space-y-1">
-                          {card.info.root && (
-                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                              Root: {card.info.root}
-                            </p>
-                          )}
-                          {card.info.gender && (
-                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                              Gender: {card.info.gender}
-                            </p>
-                          )}
-                          {card.info.verb_tense && (
-                            <>
-                              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                                Tense: {card.info.verb_tense}
-                              </p>
-                              {card.info.verb_tense_components && (
-                                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                                  Components: {Array.isArray(card.info.verb_tense_components) 
-                                    ? card.info.verb_tense_components.join(', ')
-                                    : card.info.verb_tense_components}
-                                </p>
-                              )}
-                            </>
-                          )}
-                          {card.info.noun_case && (
-                            <>
-                              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                                Case: {card.info.noun_case}
-                              </p>
-                              {card.info.noun_case_components && (
-                                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                                  Case Components: {card.info.noun_case_components}
-                                </p>
-                              )}
-                            </>
-                          )}
-                          {card.info.noun_components?.affixes && (
-                            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                              Affixes: {card.info.noun_components.affixes}
-                            </p>
-                          )}
+        {cards.map((card) => {
+          // Extract the word from the key (remove position suffix)
+          const word = card.word.split('_')[0];
+          return (
+            <motion.div
+              key={card.id}
+              ref={(el) => {
+                if (el) cardRefs.current.set(card.id, el);
+              }}
+              className="absolute"
+              style={{
+                left: card.x - 75,
+                top: card.y - 50,
+                transform: `scale(${scale})`,
+              }}
+              drag={!isDragging}
+              dragMomentum={false}
+              onDragStart={() => setIsDragging(true)}
+              onDragEnd={() => setIsDragging(false)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Card 
+                      className={`w-[150px] sm:w-[200px] shadow-lg hover:shadow-xl transition-shadow ${
+                        selectedCard === card.id ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
+                      } ${card.color}`}
+                      onClick={() => handleCardSelect(card.id)}
+                    >
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="text-base sm:text-lg font-bold dark:text-gray-100">{word}</h3>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleCardExpansion(card.id);
+                            }}
+                          >
+                            <Info className="h-4 w-4 dark:text-gray-400" />
+                          </Button>
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TooltipTrigger>
-                <TooltipContent className="dark:bg-gray-800 dark:text-gray-100">
-                  <p>Position: {card.info.position + 1}</p>
-                  {card.info.root && <p>Root: {card.info.root}</p>}
-                  <p>Part of Speech: {card.info.part_of_speech}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </motion.div>
-        ))}
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+                          {card.info.part_of_speech}
+                        </p>
+                        {card.isExpanded && (
+                          <div className="mt-2 space-y-1">
+                            {card.info.root && (
+                              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                Root: {card.info.root}
+                              </p>
+                            )}
+                            {card.info.gender && (
+                              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                Gender: {card.info.gender}
+                              </p>
+                            )}
+                            {card.info.verb_tense && (
+                              <>
+                                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                  Tense: {card.info.verb_tense}
+                                </p>
+                                {card.info.verb_tense_components && (
+                                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                    Components: {Array.isArray(card.info.verb_tense_components) 
+                                      ? card.info.verb_tense_components.join(', ')
+                                      : card.info.verb_tense_components}
+                                  </p>
+                                )}
+                              </>
+                            )}
+                            {card.info.noun_case && (
+                              <>
+                                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                  Case: {card.info.noun_case}
+                                </p>
+                                {card.info.noun_case_components && (
+                                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                    Case Components: {card.info.noun_case_components}
+                                  </p>
+                                )}
+                              </>
+                            )}
+                            {card.info.noun_components?.affixes && (
+                              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                Affixes: {card.info.noun_components.affixes}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </TooltipTrigger>
+                  <TooltipContent className="dark:bg-gray-800 dark:text-gray-100">
+                    <p>Position: {card.info.position + 1}</p>
+                    {card.info.root && <p>Root: {card.info.root}</p>}
+                    <p>Part of Speech: {card.info.part_of_speech}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </motion.div>
+          );
+        })}
       </div>
     </div>
   );

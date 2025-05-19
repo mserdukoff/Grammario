@@ -111,7 +111,7 @@ export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence,
                       <p className="text-sm truncate text-foreground">
                         {Object.entries(sentence.llmResponse.result?.sentence || sentence.llmResponse.sentence || {})
                           .sort((a, b) => a[1].position - b[1].position)
-                          .map(([word]) => word)
+                          .map(([wordKey]) => wordKey.split('_')[0])
                           .join(' ')}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
