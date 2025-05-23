@@ -3,26 +3,7 @@
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { motion, AnimatePresence } from 'framer-motion'
-
-interface WordInfo {
-  position: number;
-  part_of_speech: string;
-  root: string | null;
-  noun_components: {
-    affixes: string | null;
-  };
-  noun_case: string | null;
-  noun_case_components: string | null;
-  verb_tense: string | null;
-  verb_tense_components: string[] | null;
-}
-
-interface LLMResponse {
-  sentence: {
-    [word: string]: WordInfo;
-  };
-  relationship_matrix: number[][] | number[] | { [key: string]: number };
-}
+import { LLMResponse, WordInfo } from '@/types'
 
 interface SentenceDisplayProps {
   data: LLMResponse
@@ -37,16 +18,21 @@ export default function SentenceDisplay({ data }: SentenceDisplayProps) {
   }
 
   const getRelatedWords = (word: string) => {
-    const index = Object.keys(data.sentence).indexOf(word)
-    const words = Object.keys(data.sentence)
+    const sentence = data.result?.sentence || data.sentence;
+    const matrix = data.result?.relationship_matrix || data.relationship_matrix;
+    
+    if (!sentence || !matrix) return [];
+    
+    const index = Object.keys(sentence).indexOf(word)
+    const words = Object.keys(sentence)
 
-    if (Array.isArray(data.relationship_matrix)) {
-      if (data.relationship_matrix.length === 0) {
+    if (Array.isArray(matrix)) {
+      if (matrix.length === 0) {
         return [];
       }
-      if (Array.isArray(data.relationship_matrix[0])) {
+      if (Array.isArray(matrix[0])) {
         // Nested array format
-        const row = data.relationship_matrix[index];
+        const row = matrix[index];
         if (Array.isArray(row)) {
           return row
             .map((relation, i) => relation === 1 ? words[i] : null)
@@ -56,18 +42,18 @@ export default function SentenceDisplay({ data }: SentenceDisplayProps) {
         // Single array format
         const matrixSize = words.length
         return words.filter((_, i) => {
-          const value = (data.relationship_matrix as number[])[index * matrixSize + i]
+          const value = (matrix as number[])[index * matrixSize + i]
           return typeof value === 'number' && value === 1 && i !== index
         })
       }
-    } else if (typeof data.relationship_matrix === 'object') {
+    } else if (typeof matrix === 'object') {
       // Object format
-      return Object.entries(data.relationship_matrix)
+      return Object.entries(matrix)
         .filter(([key, value]) => value === 1 && key !== word)
         .map(([key]) => key)
     }
     
-    console.warn('Unexpected relationship_matrix format:', data.relationship_matrix)
+    console.warn('Unexpected relationship_matrix format:', matrix)
     return []
   }
 
@@ -119,21 +105,29 @@ export default function SentenceDisplay({ data }: SentenceDisplayProps) {
     )
   }
 
-  const sortedWords = Object.entries(data.sentence).sort((a, b) => a[1].position - b[1].position)
+  // Guard against missing or malformed data
+  const sentence = data.result?.sentence || data.sentence;
+  if (!sentence || Object.keys(sentence).length === 0) {
+    return null;
+  }
+  
+  const sortedWords = Object.entries(sentence).sort((a, b) => a[1].position - b[1].position)
 
   return (
     <div>
       <div className="mb-4">
-        {sortedWords.map(([word, wordData]) => {
-          const isRelated = hoveredWord && getRelatedWords(hoveredWord).includes(word)
+        {sortedWords.map(([wordKey, wordData]) => {
+          // Extract the word from the key (remove position suffix)
+          const word = wordKey.split('_')[0];
+          const isRelated = hoveredWord && getRelatedWords(hoveredWord).includes(wordKey)
           return (
             <motion.span
-              key={word}
+              key={wordKey}
               className={`inline-block mr-2 mb-2 p-2 rounded cursor-pointer transition-colors duration-200 ${
                 isRelated ? 'bg-yellow-200 dark:bg-yellow-800' : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-800 dark:hover:bg-blue-700'
               }`}
-              onClick={() => handleWordClick(word)}
-              onMouseEnter={() => setHoveredWord(word)}
+              onClick={() => handleWordClick(wordKey)}
+              onMouseEnter={() => setHoveredWord(wordKey)}
               onMouseLeave={() => setHoveredWord(null)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -144,7 +138,7 @@ export default function SentenceDisplay({ data }: SentenceDisplayProps) {
         })}
       </div>
       <AnimatePresence>
-        {selectedWord && data.sentence[selectedWord] && renderWordInfo(data.sentence[selectedWord])}
+        {selectedWord && sentence[selectedWord] && renderWordInfo(sentence[selectedWord])}
       </AnimatePresence>
     </div>
   )

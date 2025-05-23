@@ -7,7 +7,7 @@ interface LogoProps {
 const Logo: React.FC<LogoProps> = ({ collapsed = false }) => {
   return (
     <h1 className={`text-2xl font-serif text-primary ${collapsed ? 'w-8 h-8 flex items-center justify-center' : ''}`}>
-      {collapsed ? 'G' : 'Grammario'}
+      {collapsed ? 'G' : 'Grammario 1.0'}
     </h1>
   )
 }
