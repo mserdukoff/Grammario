@@ -8,23 +8,26 @@ import SentenceDisplay from "./SentenceDisplay"
 import { useToast } from "@/components/ui/use-toast"
 
 interface SentenceInputProps {
-  onAddSentence: (sentence: string, llmResponse: any) => Promise<void>
+  onSubmit: (sentence: string, llmResponse: any) => Promise<void>
+  onCancel: () => void
+  selectedLanguage: string
 }
 
-export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
+export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: SentenceInputProps) {
   const [sentence, setSentence] = useState("")
   const [processedSentence, setProcessedSentence] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [rawResponse, setRawResponse] = useState<string | null>(null)
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError(null)
+    setRawResponse(null)
 
     try {
-      console.log("Sending sentence for processing:", sentence)
       const response = await fetch("/api/process-sentence", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -34,21 +37,13 @@ export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
       const data = await response.json()
 
       if (!response.ok) {
+        setRawResponse(data.raw || null)
         throw new Error(data.error || "Failed to process sentence")
       }
 
-      console.log("Received processed sentence:", data)
       setProcessedSentence(data)
-
-      // Flatten nested arrays in the data
-      const flattenedData = JSON.parse(JSON.stringify(data), (key, value) => {
-        if (Array.isArray(value)) {
-          return value.flat()
-        }
-        return value
-      })
-
-      await onAddSentence(sentence, flattenedData)
+      await onSubmit(sentence, data)
+      onCancel()
 
       toast({
         title: "Sentence Analyzed",
@@ -65,10 +60,10 @@ export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <form onSubmit={handleSubmit} className="mb-8 space-y-4">
-        <p className="text-sm text-muted-foreground mb-2">
-          Type a sentence in any foreign language to analyze its grammar
+    <div className="bg-background p-6 rounded-lg shadow-lg">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Type a sentence in {selectedLanguage} to analyze its grammar
         </p>
         <Input
           type="text"
@@ -77,18 +72,46 @@ export default function SentenceInput({ onAddSentence }: SentenceInputProps) {
           placeholder="Enter a sentence"
           className="mb-4"
         />
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? "Processing..." : "Analyze"}
-        </Button>
+        <div className="flex gap-2">
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Processing..." : "Analyze"}
+          </Button>
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
       </form>
       {error && (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" className="mt-4">
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            {error}
+            {rawResponse && (
+              <div className="mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const blob = new Blob([rawResponse], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'llm-response.txt';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }}
+                >
+                  View Raw LLM Output
+                </Button>
+              </div>
+            )}
+          </AlertDescription>
         </Alert>
       )}
       {isLoading && (
-        <Alert className="mb-4">
+        <Alert className="mt-4">
           <AlertTitle>Processing</AlertTitle>
           <AlertDescription>Analyzing your sentence. This may take a few moments.</AlertDescription>
         </Alert>

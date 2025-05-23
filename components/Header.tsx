@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import Login from "./Login"
 import { Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
-import Link from "next/link"
 
 interface HeaderProps {
   user: User | null
@@ -17,7 +16,6 @@ export default function Header({ user }: HeaderProps) {
   const handleLogout = async () => {
     try {
       await signOut(auth)
-      console.log("User signed out successfully")
     } catch (error) {
       console.error("Error signing out:", error)
     }
@@ -29,27 +27,31 @@ export default function Header({ user }: HeaderProps) {
 
   return (
     <header className="bg-background border-b">
-      <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Toggle theme">
+      <div className="relative w-full h-16 px-4">
+        <div className="flex items-center justify-between h-full max-w-7xl mx-auto">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={toggleTheme} 
+            aria-label="Toggle theme"
+            className="flex-shrink-0"
+          >
             {theme === "dark" ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : <Moon className="h-[1.2rem] w-[1.2rem]" />}
           </Button>
-          <Link href="/about" passHref>
-            <Button variant="ghost">More about Grammario</Button>
-          </Link>
-        </div>
-        <div className="flex items-center space-x-4">
-          {user ? (
-            <>
-              <span>Welcome, {user.email || "User"}</span>
-              <Button onClick={handleLogout}>Logout</Button>
-            </>
-          ) : (
-            <>
-              <span>Login to save your history</span>
-              <Login onLogin={() => console.log("User logged in")} />
-            </>
-          )}
+          
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            {user ? (
+              <>
+                <span className="text-sm hidden sm:inline">Welcome, {user.email || "User"}</span>
+                <Button onClick={handleLogout} variant="ghost" size="sm">Logout</Button>
+              </>
+            ) : (
+              <>
+                <span className="text-sm hidden sm:inline">Login to save your history</span>
+                <Login onLogin={() => {}} />
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>

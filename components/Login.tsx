@@ -13,7 +13,6 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      console.log('Login successful:', result.user);
       onLogin();
     } catch (error) {
       console.error('Login error:', error);
