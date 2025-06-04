@@ -458,8 +458,15 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
                 top: card.y - 50,
                 transform: `scale(${scale})`,
               }}
-              drag={!isDragging}
+              drag
               dragMomentum={false}
+              dragElastic={0}
+              dragConstraints={{
+                left: -card.x + 75,
+                right: canvasSize.width - card.x - 75,
+                top: -card.y + 50,
+                bottom: canvasSize.height - card.y - 50
+              }}
               onDragStart={() => setIsDragging(true)}
               onDragEnd={() => setIsDragging(false)}
               whileHover={{ scale: 1.05 }}
@@ -494,7 +501,7 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
                         </p>
                         {card.isExpanded && (
                           <div className="mt-2 space-y-1">
-                            {card.info.root && (
+                            {card.info.root && card.info.root !== word && (
                               <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                                 Root: {card.info.root}
                               </p>
