@@ -33,4 +33,66 @@ export interface Sentence {
   sentence: string;
   llmResponse: LLMResponse;
   timestamp: Timestamp;
+}
+
+// New types for quiz functionality
+export interface QuizQuestion {
+  id: string;
+  type: 'part_of_speech' | 'root_word' | 'suffix' | 'case' | 'tense';
+  question: string;
+  correctAnswer: string;
+  options: string[];
+  word: string;
+  position: number;
+}
+
+export interface QuizResult {
+  id: string;
+  userId: string;
+  sentenceId: string;
+  questions: QuizQuestion[];
+  userAnswers: { [questionId: string]: string };
+  score: number;
+  totalQuestions: number;
+  timestamp: Timestamp;
+}
+
+// New types for progress tracking
+export interface UserProgress {
+  userId: string;
+  totalSentencesAnalyzed: number;
+  totalQuizzesTaken: number;
+  averageQuizScore: number;
+  wordsLearned: string[];
+  lastActive: Timestamp;
+  streakDays: number;
+  badges: Badge[];
+}
+
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  earnedAt: Timestamp;
+}
+
+// New types for vocabulary expansion
+export interface VocabularyWord {
+  word: string;
+  partOfSpeech: string;
+  synonyms: string[];
+  relatedWords: string[];
+  frequency: 'common' | 'uncommon' | 'rare';
+  exampleSentences: string[];
+}
+
+export interface VocabularyEntry {
+  id: string;
+  userId: string;
+  word: string;
+  vocabularyData: VocabularyWord;
+  addedAt: Timestamp;
+  lastReviewed: Timestamp;
+  masteryLevel: number; // 0-100
 } 

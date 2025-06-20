@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import Logo from './Logo'
 import { Timestamp } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
-import { Trash2, Plus, History, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Trash2, Plus, History, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,11 +46,12 @@ interface SidebarProps {
   onDeleteSentence: (sentenceId: string) => Promise<void>;
   onSelectSentence: (sentence: Sentence) => void;
   onNewSentence: () => void;
+  onShowProgress: () => void;
   user: FirebaseUser | null;
   initialIsOpen: boolean;
 }
 
-export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence, onNewSentence, user, initialIsOpen }: SidebarProps) {
+export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence, onNewSentence, onShowProgress, user, initialIsOpen }: SidebarProps) {
   const isMobile = useIsMobile()
   const [isOpen, setIsOpen] = useState(initialIsOpen)
   const [deletingSentenceId, setDeletingSentenceId] = useState<string | null>(null)
@@ -93,6 +94,25 @@ export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence,
             <History className="h-5 w-5 text-muted-foreground" />
           )}
         </div>
+        
+        {/* Progress Dashboard Button */}
+        <div className="px-4 py-2">
+          <Button
+            variant="ghost"
+            className={`w-full ${isOpen ? 'justify-start' : 'justify-center'}`}
+            onClick={onShowProgress}
+          >
+            {isOpen ? (
+              <>
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Progress
+              </>
+            ) : (
+              <TrendingUp className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+        
         <div className="mt-2 px-4">
           {!user && isOpen ? (
             <p className="text-sm text-muted-foreground">Sign in to save and view your sentence history.</p>
