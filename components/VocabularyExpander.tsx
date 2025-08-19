@@ -383,3 +383,4 @@ export default function VocabularyExpander({ word, wordData, language, onClose }
     </motion.div>
   )
 }
+
