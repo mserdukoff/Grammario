@@ -116,7 +116,13 @@ export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: 
           <AlertDescription>Analyzing your sentence. This may take a few moments.</AlertDescription>
         </Alert>
       )}
-      {processedSentence && <SentenceDisplay data={processedSentence} />}
+      {processedSentence && (
+        <SentenceDisplay 
+          data={processedSentence} 
+          title="Analyzed Sentence"
+          sentence={sentence}
+        />
+      )}
     </div>
   )
 }

@@ -157,7 +157,11 @@ export default function GrammarQuiz({ sentenceData, sentence, onQuizComplete }: 
     if (!selectedAnswer) return
     
     setShowAnswer(true)
-    setAnsweredQuestions(prev => new Set([...prev, currentQuestionIndex]))
+    setAnsweredQuestions(prev => {
+      const newSet = new Set(prev)
+      newSet.add(currentQuestionIndex)
+      return newSet
+    })
     
     if (selectedAnswer === questions[currentQuestionIndex].correctAnswer) {
       setScore(prev => prev + 1)

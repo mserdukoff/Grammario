@@ -66,7 +66,6 @@ export default function Home() {
   const [newAchievements, setNewAchievements] = useState<Achievement[]>([])
   const [progressTracker, setProgressTracker] = useState<ProgressTracker | null>(null)
   const [showQuiz, setShowQuiz] = useState(false)
-  const [showProgress, setShowProgress] = useState(false)
   const [quizResults, setQuizResults] = useState<QuizResult[]>([])
 
   const isMobile = useIsMobile()
@@ -288,7 +287,7 @@ export default function Home() {
   }
 
   const handleShowProgress = () => {
-    setShowProgress(true)
+    setShowProgressDashboard(true)
   }
 
   const handleNewSentence = () => {
@@ -433,25 +432,7 @@ export default function Home() {
               </div>
             </div>
           )}
-          {/* Progress Dashboard modal */}
-          {showProgress && (
-            <div className="absolute inset-0 z-40 bg-background/80 dark:bg-gray-800/80 backdrop-blur-sm">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] sm:w-[800px] max-h-[90vh] overflow-y-auto">
-                <div className="bg-background rounded-lg shadow-lg p-6">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Learning Progress</h2>
-                    <Button variant="outline" onClick={() => setShowProgress(false)}>
-                      Close
-                    </Button>
-                  </div>
-                  <ProgressDashboard
-                    quizResults={quizResults}
-                    totalSentences={sentences.length}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+
         </main>
       </div>
       <Toaster />
