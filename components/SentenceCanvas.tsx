@@ -196,11 +196,26 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
       if (ctx) {
         ctx.scale(dpr, dpr);
       }
+
+      // Force a redraw of the lines
+      setCards(prevCards => [...prevCards]);
+    };
+
+    // Handle visibility change
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        updateCanvasSize();
+      }
     };
 
     updateCanvasSize();
     window.addEventListener('resize', updateCanvasSize);
-    return () => window.removeEventListener('resize', updateCanvasSize);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('resize', updateCanvasSize);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   // Handle zoom with mouse wheel
@@ -314,11 +329,11 @@ export default function SentenceCanvas({ data, title, sentence }: SentenceCanvas
       
       if (!containerRect) return;
 
-      // Calculate positions relative to container
-      const sourceX = sourceRect.right - containerRect.left;
-      const sourceY = sourceRect.top + sourceRect.height / 2 - containerRect.top;
-      const targetX = targetRect.left - containerRect.left;
-      const targetY = targetRect.top + targetRect.height / 2 - containerRect.top;
+      // Calculate positions relative to container and scale
+      const sourceX = (sourceRect.right - containerRect.left) * scale;
+      const sourceY = (sourceRect.top + sourceRect.height / 2 - containerRect.top) * scale;
+      const targetX = (targetRect.left - containerRect.left) * scale;
+      const targetY = (targetRect.top + targetRect.height / 2 - containerRect.top) * scale;
 
       // Draw the line with angles
       ctx.beginPath();
