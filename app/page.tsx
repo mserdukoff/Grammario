@@ -11,13 +11,16 @@ import SentenceDisplay from "@/components/SentenceDisplay"
 import { Toaster } from "@/components/ui/toaster"
 import { useIsMobile } from "@/components/hooks/use-mobile"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertTriangle } from "lucide-react"
+import { AlertTriangle, TrendingUp } from "lucide-react"
 import SentenceCanvas from "@/components/SentenceCanvas"
 import LanguageSelector, { DEMO_SENTENCES, SUPPORTED_LANGUAGES } from "@/components/LanguageSelector"
 import { Button } from "@/components/ui/button"
-import QuizGenerator from "@/components/QuizGenerator"
-import ProgressDashboard from "@/components/ProgressDashboard"
 import { Sentence, LLMResponse, QuizResult } from "@/types"
+import { Achievement } from "@/types/progress"
+import { ProgressTracker } from "@/lib/progress-tracker"
+import ProgressDashboard from "@/components/ProgressDashboard"
+import AchievementNotification from "@/components/AchievementNotification"
+import QuizGenerator from "@/components/QuizGenerator"
 
 // Type adapter to convert between Canvas and Sidebar LLMResponse formats
 const adaptLLMResponse = (response: LLMResponse): LLMResponse => {
@@ -59,6 +62,9 @@ export default function Home() {
   const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null)
   const [selectedLanguage, setSelectedLanguage] = useState<string>('italian')
   const [showInput, setShowInput] = useState(false)
+  const [showProgressDashboard, setShowProgressDashboard] = useState(false)
+  const [newAchievements, setNewAchievements] = useState<Achievement[]>([])
+  const [progressTracker, setProgressTracker] = useState<ProgressTracker | null>(null)
   const [showQuiz, setShowQuiz] = useState(false)
   const [showProgress, setShowProgress] = useState(false)
   const [quizResults, setQuizResults] = useState<QuizResult[]>([])
@@ -71,15 +77,19 @@ export default function Home() {
       setIsLoading(false)
       if (currentUser) {
         fetchSentences(currentUser.uid)
+        setProgressTracker(new ProgressTracker(currentUser.uid))
         fetchQuizResults(currentUser.uid)
       } else {
         setSentences([])
+        setProgressTracker(null)
         setQuizResults([])
       }
     })
 
     return () => unsubscribe()
   }, [])
+
+
 
   const fetchSentences = async (userId: string) => {
     try {
@@ -138,10 +148,16 @@ export default function Home() {
 
     setCurrentSentence(newSentence)
 
-    if (user) {
+    if (user && progressTracker) {
       try {
         const docRef = await addDoc(collection(db, "sentences"), newSentence)
         fetchSentences(user.uid)
+        
+        // Track progress and check for achievements
+        const achievements = await progressTracker.recordSentenceAnalysis(sentence, selectedLanguage)
+        if (achievements.length > 0) {
+          setNewAchievements(achievements)
+        }
       } catch (error) {
         console.error("Error adding sentence:", error)
         throw error
@@ -150,8 +166,6 @@ export default function Home() {
   }
 
   const handleDemoSentenceSelect = (sentence: string, llmResponse: any) => {
-    // Log the raw response for debugging
-    console.log('Raw LLM Response:', JSON.stringify(llmResponse, null, 2));
 
     // Ensure the data structure matches what we expect
     let relationship_matrix = llmResponse.result?.relationship_matrix || [];
@@ -166,8 +180,7 @@ export default function Home() {
       }
     }
 
-    // Log the formatted response
-    console.log('Formatted LLM Response:', JSON.stringify(formattedResponse, null, 2));
+
 
     const newSentence: Sentence = {
       id: Date.now().toString(),
@@ -312,23 +325,49 @@ export default function Home() {
         <Header user={user} />
         <main className="flex-1 relative">
           <div className="absolute inset-0">
-            {/* Display the sentence text above the canvas visualization */}
-            {(selectedSentence || currentSentence) && (
-              <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-background/80 dark:bg-gray-800/80 px-4 sm:px-6 py-2 rounded shadow text-lg sm:text-xl font-semibold dark:text-gray-100 max-w-[90%] sm:max-w-none text-center">
-                {(selectedSentence?.sentence || currentSentence?.sentence) ?? ''}
-              </div>
-            )}
             {selectedSentence ? (
-              <SentenceCanvas 
+              <SentenceDisplay 
                 data={selectedSentence.llmResponse} 
                 title="Selected Sentence"
                 sentence={selectedSentence.sentence}
+                onQuizComplete={async (score, total) => {
+                  if (progressTracker) {
+                    const achievements = await progressTracker.recordQuizCompletion(score, total, selectedLanguage)
+                    if (achievements.length > 0) {
+                      setNewAchievements(achievements)
+                    }
+                  }
+                }}
+                onVocabularyExpand={async (word) => {
+                  if (progressTracker) {
+                    const achievements = await progressTracker.recordVocabularyExpansion(word, selectedLanguage)
+                    if (achievements.length > 0) {
+                      setNewAchievements(achievements)
+                    }
+                  }
+                }}
               />
             ) : currentSentence ? (
-              <SentenceCanvas 
+              <SentenceDisplay 
                 data={currentSentence.llmResponse} 
                 title="Analyzed Sentence"
                 sentence={currentSentence.sentence}
+                onQuizComplete={async (score, total) => {
+                  if (progressTracker) {
+                    const achievements = await progressTracker.recordQuizCompletion(score, total, selectedLanguage)
+                    if (achievements.length > 0) {
+                      setNewAchievements(achievements)
+                    }
+                  }
+                }}
+                onVocabularyExpand={async (word) => {
+                  if (progressTracker) {
+                    const achievements = await progressTracker.recordVocabularyExpansion(word, selectedLanguage)
+                    if (achievements.length > 0) {
+                      setNewAchievements(achievements)
+                    }
+                  }
+                }}
               />
             ) : null}
           </div>
@@ -358,6 +397,17 @@ export default function Home() {
               onLanguageSelect={handleLanguageSelect}
               onDemoSentenceSelect={handleDemoSentenceSelect}
             />
+            {user && (
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => setShowProgressDashboard(true)}
+                title="Progress Dashboard"
+                className="dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                <TrendingUp className="h-4 w-4" />
+              </Button>
+            )}
           </div>
           {/* Sentence input form */}
           {showInput && (
@@ -405,6 +455,22 @@ export default function Home() {
         </main>
       </div>
       <Toaster />
+      
+      {/* Progress Dashboard Modal */}
+      {showProgressDashboard && user && (
+        <ProgressDashboard
+          userId={user.uid}
+          onClose={() => setShowProgressDashboard(false)}
+        />
+      )}
+      
+      {/* Achievement Notifications */}
+      {newAchievements.length > 0 && (
+        <AchievementNotification
+          achievements={newAchievements}
+          onClose={() => setNewAchievements([])}
+        />
+      )}
     </div>
   )
 }
