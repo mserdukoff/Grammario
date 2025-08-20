@@ -5,20 +5,30 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import SentenceDisplay from "./SentenceDisplay"
+import ErrorDisplay from "./ErrorDisplay"
 import { useToast } from "@/components/ui/use-toast"
+import { analyze } from "@/lib/grammario-client"
+import { transformAnalysisToLLMResponse, extractErrorsAndTeaching } from "@/lib/grammario-transform"
 
 interface SentenceInputProps {
-  onSubmit: (sentence: string, llmResponse: any) => Promise<void>
+  onSubmit: (sentence: string, llmResponse: any, analysisMetadata?: any) => Promise<void>
   onCancel: () => void
   selectedLanguage: string
 }
 
 export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: SentenceInputProps) {
   const [sentence, setSentence] = useState("")
-  const [processedSentence, setProcessedSentence] = useState(null)
+  const [processedSentence, setProcessedSentence] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rawResponse, setRawResponse] = useState<string | null>(null)
+  const [analysisMetadata, setAnalysisMetadata] = useState<{
+    errors: any[]
+    teaching_notes: any[]
+    normalized?: string
+    language?: string
+    tokens?: any[]
+  } | null>(null)
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,21 +38,18 @@ export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: 
     setRawResponse(null)
 
     try {
-      const response = await fetch("/api/process-sentence", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sentence }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setRawResponse(data.raw || null)
-        throw new Error(data.error || "Failed to process sentence")
-      }
-
-      setProcessedSentence(data)
-      await onSubmit(sentence, data)
+      // Use the new robust analysis system
+      const analysis = await analyze(sentence, selectedLanguage)
+      
+      // Transform to the format expected by the UI
+      const transformedData = transformAnalysisToLLMResponse(analysis)
+      
+      // Extract error and teaching information
+      const metadata = extractErrorsAndTeaching(analysis)
+      
+      setProcessedSentence(transformedData)
+      setAnalysisMetadata(metadata)
+      await onSubmit(sentence, transformedData, metadata)
       onCancel()
 
       toast({
@@ -54,6 +61,7 @@ export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: 
     } catch (error) {
       console.error("Error processing sentence:", error)
       setError(error instanceof Error ? error.message : "An unknown error occurred")
+      setRawResponse(null) // Clear any previous raw response
     } finally {
       setIsLoading(false)
     }
@@ -117,11 +125,22 @@ export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: 
         </Alert>
       )}
       {processedSentence && (
-        <SentenceDisplay 
-          data={processedSentence} 
-          title="Analyzed Sentence"
-          sentence={sentence}
-        />
+        <>
+          <SentenceDisplay 
+            data={processedSentence} 
+            title="Analyzed Sentence"
+            sentence={sentence}
+          />
+          {analysisMetadata && (
+            <ErrorDisplay
+              errors={analysisMetadata.errors}
+              teachingNotes={analysisMetadata.teaching_notes}
+              originalSentence={sentence}
+              normalizedSentence={analysisMetadata.normalized}
+              tokens={analysisMetadata.tokens}
+            />
+          )}
+        </>
       )}
     </div>
   )

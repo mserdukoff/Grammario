@@ -123,7 +123,7 @@ export default function Home() {
     }
   }
 
-  const addSentence = async (sentence: string, llmResponse: any) => {
+  const addSentence = async (sentence: string, llmResponse: any, analysisMetadata?: any) => {
     // Ensure the data structure matches what we expect
     let relationship_matrix = llmResponse.result?.result?.relationship_matrix || [];
     if (Array.isArray(relationship_matrix) && Array.isArray(relationship_matrix[0])) {
@@ -143,6 +143,7 @@ export default function Home() {
       sentence: sentence,
       llmResponse: formattedResponse,
       timestamp: Timestamp.now(),
+      analysisMetadata: analysisMetadata, // Store Grammar Insights
     }
 
     setCurrentSentence(newSentence)
@@ -329,6 +330,7 @@ export default function Home() {
                 data={selectedSentence.llmResponse} 
                 title="Selected Sentence"
                 sentence={selectedSentence.sentence}
+                analysisMetadata={selectedSentence.analysisMetadata}
                 onQuizComplete={async (score, total) => {
                   if (progressTracker) {
                     const achievements = await progressTracker.recordQuizCompletion(score, total, selectedLanguage)
@@ -351,6 +353,7 @@ export default function Home() {
                 data={currentSentence.llmResponse} 
                 title="Analyzed Sentence"
                 sentence={currentSentence.sentence}
+                analysisMetadata={currentSentence.analysisMetadata}
                 onQuizComplete={async (score, total) => {
                   if (progressTracker) {
                     const achievements = await progressTracker.recordQuizCompletion(score, total, selectedLanguage)
