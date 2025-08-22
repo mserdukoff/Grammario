@@ -1,4 +1,5 @@
 import { AnalysisSchema, type Analysis } from "@/lib/grammario";
+import { detectFamily, parseByFamily } from "@/lib/grammario-groups";
 
 export async function analyze(sentence: string, languageHint?: string): Promise<Analysis> {
   try {
@@ -22,7 +23,10 @@ export async function analyze(sentence: string, languageHint?: string): Promise<
       throw new Error(`${errorMessage}${errorDetails}`);
     }
     
-    return AnalysisSchema.parse(responseData);
+    // Use family-specific parsing to preserve all morphological data
+    const family = detectFamily(languageHint);
+    const validated = parseByFamily(family, responseData);
+    return validated;
   } catch (error) {
     if (error instanceof Error) {
       console.error("Analysis request failed:", error.message);

@@ -60,7 +60,7 @@ export default function Home() {
   const [selectedSentence, setSelectedSentence] = useState<Sentence | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null)
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('italian')
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('turkish')
   const [showInput, setShowInput] = useState(false)
   const [showProgressDashboard, setShowProgressDashboard] = useState(false)
   const [newAchievements, setNewAchievements] = useState<Achievement[]>([])
@@ -137,13 +137,29 @@ export default function Home() {
       }
     }
 
+    // Sanitize all data to prevent Firebase undefined value errors
+    const sanitizeForFirebase = (obj: any): any => {
+      if (obj === undefined) return null;
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (Array.isArray(obj)) return obj.map(sanitizeForFirebase);
+      
+      const sanitized: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        const sanitizedValue = sanitizeForFirebase(value);
+        if (sanitizedValue !== null) { // Only include non-null values
+          sanitized[key] = sanitizedValue;
+        }
+      }
+      return sanitized;
+    };
+
     const newSentence: Sentence = {
       id: Date.now().toString(),
       userId: user ? user.uid : "anonymous",
       sentence: sentence,
-      llmResponse: formattedResponse,
+      llmResponse: sanitizeForFirebase(formattedResponse),
       timestamp: Timestamp.now(),
-      analysisMetadata: analysisMetadata, // Store Grammar Insights
+      analysisMetadata: analysisMetadata ? sanitizeForFirebase(analysisMetadata) : null,
     }
 
     setCurrentSentence(newSentence)
@@ -419,6 +435,7 @@ export default function Home() {
                   onSubmit={addSentence}
                   onCancel={() => setShowInput(false)}
                   selectedLanguage={selectedLanguage}
+                  onLanguageChange={setSelectedLanguage}
                 />
               </div>
             </div>

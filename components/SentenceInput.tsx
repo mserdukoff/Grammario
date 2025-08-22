@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import SentenceDisplay from "./SentenceDisplay"
 import ErrorDisplay from "./ErrorDisplay"
+import LanguageDropdown from "./LanguageDropdown"
 import { useToast } from "@/components/ui/use-toast"
 import { analyze } from "@/lib/grammario-client"
 import { transformAnalysisToLLMResponse, extractErrorsAndTeaching } from "@/lib/grammario-transform"
@@ -14,9 +15,10 @@ interface SentenceInputProps {
   onSubmit: (sentence: string, llmResponse: any, analysisMetadata?: any) => Promise<void>
   onCancel: () => void
   selectedLanguage: string
+  onLanguageChange?: (language: string) => void
 }
 
-export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: SentenceInputProps) {
+export default function SentenceInput({ onSubmit, onCancel, selectedLanguage, onLanguageChange }: SentenceInputProps) {
   const [sentence, setSentence] = useState("")
   const [processedSentence, setProcessedSentence] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -70,16 +72,27 @@ export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: 
   return (
     <div className="bg-background p-6 rounded-lg shadow-lg">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Type a sentence in {selectedLanguage} to analyze its grammar
-        </p>
-        <Input
-          type="text"
-          value={sentence}
-          onChange={(e) => setSentence(e.target.value)}
-          placeholder="Enter a sentence"
-          className="mb-4"
-        />
+        <div className="space-y-3">
+          <label className="text-sm font-medium text-foreground">
+            Select Language
+          </label>
+          <LanguageDropdown
+            selectedLanguage={selectedLanguage}
+            onLanguageSelect={onLanguageChange || (() => {})}
+            className="w-full"
+          />
+        </div>
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Type a sentence in {selectedLanguage} to analyze its grammar
+          </p>
+          <Input
+            type="text"
+            value={sentence}
+            onChange={(e) => setSentence(e.target.value)}
+            placeholder="Enter a sentence"
+          />
+        </div>
         <div className="flex gap-2">
           <Button type="submit" disabled={isLoading}>
             {isLoading ? "Processing..." : "Analyze"}
@@ -130,6 +143,7 @@ export default function SentenceInput({ onSubmit, onCancel, selectedLanguage }: 
             data={processedSentence} 
             title="Analyzed Sentence"
             sentence={sentence}
+            analysisMetadata={analysisMetadata}
           />
           {analysisMetadata && (
             <ErrorDisplay

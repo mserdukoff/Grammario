@@ -18,14 +18,21 @@ export default function MorphologyBreakdown({ word, components }: MorphologyBrea
     return null
   }
 
-  // Sort components to show root/stem first, then others
+  // Sort components to show infinitive/root/stem first, then others
   const sortedComponents = [...components].sort((a, b) => {
-    const rootTypes = ['root', 'stem']
-    const aIsRoot = rootTypes.includes(a.type)
-    const bIsRoot = rootTypes.includes(b.type)
+    const baseTypes = ['infinitive', 'root', 'stem']
+    const aIsBase = baseTypes.includes(a.type)
+    const bIsBase = baseTypes.includes(b.type)
     
-    if (aIsRoot && !bIsRoot) return -1
-    if (!aIsRoot && bIsRoot) return 1
+    if (aIsBase && !bIsBase) return -1
+    if (!aIsBase && bIsBase) return 1
+    
+    // Within base types, prioritize infinitive
+    if (aIsBase && bIsBase) {
+      if (a.type === 'infinitive' && b.type !== 'infinitive') return -1
+      if (a.type !== 'infinitive' && b.type === 'infinitive') return 1
+    }
+    
     return 0
   })
 
@@ -34,6 +41,10 @@ export default function MorphologyBreakdown({ word, components }: MorphologyBrea
       case 'root':
       case 'stem':
         return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+      case 'infinitive':
+        return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200'
+      case 'inflection':
+        return 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200'
       case 'prefix':
         return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
       case 'suffix':

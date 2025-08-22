@@ -96,7 +96,11 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
     const wordTokens = analysisMetadata?.tokens || [];
     const wordToken = wordTokens.find(token => token.text === wordText);
     const morphComponents = wordToken?.morphological_components || [];
+    
 
+    
+
+    
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -186,7 +190,7 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
         </Card>
 
         {/* Morphological Breakdown - shown right under the word info */}
-        {morphComponents.length > 1 && (
+        {morphComponents.length > 0 && (
           <div className="mt-4">
             <MorphologyBreakdown
               word={wordText}
@@ -253,7 +257,7 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
               // Check if this word has morphological components
               const wordTokens = analysisMetadata?.tokens || [];
               const wordToken = wordTokens.find(token => token.text === word);
-              const hasMorphBreakdown = wordToken?.morphological_components && wordToken.morphological_components.length > 1;
+              const hasMorphBreakdown = wordToken?.morphological_components && wordToken.morphological_components.length > 0;
               
               return (
                 <motion.span

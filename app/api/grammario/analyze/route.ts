@@ -7,7 +7,14 @@ import {
   deepOmitNullish,
   type Analysis,
 } from "@/lib/grammario";
-import { grammarioTools } from "@/lib/grammario-tools";
+import {
+  detectFamily,
+  toolsForFamily,
+  parseByFamily,
+  normalizeAndCheck,
+  FAMILY_SYSTEM_PROMPT,
+  type Family
+} from "@/lib/grammario-groups";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -39,12 +46,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing 'sentence' string" }, { status: 400 });
     }
 
-    const tools = grammarioTools();
+    // Detect language family and get appropriate tools/prompt
+    const family = detectFamily(languageHint);
+    const tools = toolsForFamily(family);
+    const systemPrompt = FAMILY_SYSTEM_PROMPT[family];
 
     console.log("Making OpenAI API call with:", {
       model: "gpt-4o",
       sentence,
       languageHint,
+      family,
       hasApiKey: !!process.env.OPENAI_API_KEY,
       toolsLength: tools.length
     });
@@ -55,7 +66,7 @@ export async function POST(req: NextRequest) {
         model: "gpt-4o",
         temperature: 0.1,
         messages: [
-          { role: "system" as const, content: SYSTEM },
+          { role: "system" as const, content: systemPrompt },
           ...(languageHint ? [{ role: "user" as const, content: `language hint: ${languageHint}` }] : []),
           { role: "user" as const, content: sentence },
         ],
@@ -92,10 +103,11 @@ export async function POST(req: NextRequest) {
     console.log("Arguments type:", typeof toolCall.function.arguments);
     console.log("Arguments length:", toolCall.function.arguments?.length || 0);
 
-    // 1) Parse JSON, 2) Zod-validate, 3) Sanity checks, 4) Clean nulls
+    // 1) Parse JSON, 2) Family-specific Zod-validate, 3) Sanity checks, 4) Clean nulls
     let raw;
     try {
       raw = JSON.parse(toolCall.function.arguments);
+
     } catch (parseError) {
       console.error("JSON Parse Error:", parseError);
       console.error("Failed to parse:", toolCall.function.arguments);
@@ -106,14 +118,9 @@ export async function POST(req: NextRequest) {
       }, { status: 502 });
     }
     
-    const parsed = AnalysisSchema.parse(raw) as Analysis;
-    assertHeadsWithinBounds(parsed);
-
-    // Ensure normalized fallback when no errors/changes applied
-    if (!parsed.normalized) parsed.normalized = parsed.original_sentence;
-
-    // Remove null/undefined keys for your UI contract
-    const clean = deepOmitNullish(parsed);
+    // Parse using family-specific schema for better validation
+    const parsed = parseByFamily(family, raw);
+    const clean = normalizeAndCheck(parsed);
 
     return NextResponse.json(clean, { status: 200 });
   } catch (err: any) {
