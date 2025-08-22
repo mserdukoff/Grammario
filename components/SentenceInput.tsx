@@ -30,7 +30,7 @@ export default function SentenceInput({ onSubmit, onCancel, selectedLanguage, on
     normalized?: string
     language?: string
     tokens?: any[]
-  } | null>(null)
+  } | undefined>(undefined)
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
