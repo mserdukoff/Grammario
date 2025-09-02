@@ -10,14 +10,25 @@ interface LanguageSelectorProps {
 }
 
 export const SUPPORTED_LANGUAGES = {
+  // Germanic languages
   english: 'English',
   german: 'German',
+  
+  // Romance languages  
   spanish: 'Spanish',
   italian: 'Italian',
   portuguese: 'Portuguese',
+  
+  // Slavic languages
   russian: 'Russian',
   ukrainian: 'Ukrainian',
-  turkish: 'Turkish'
+  
+  // Turkic languages
+  turkish: 'Turkish',
+  
+  // Semitic languages
+  arabic: 'Arabic',
+  hebrew: 'Hebrew'
 } as const;
 
 export const DEMO_SENTENCES = {

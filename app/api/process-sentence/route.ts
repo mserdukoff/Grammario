@@ -37,6 +37,11 @@ export async function POST(req: NextRequest) {
     if (!sentence) {
       return NextResponse.json({ error: 'No sentence provided' }, { status: 400 });
     }
+
+    // Add deprecation warning in development
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('⚠️  DEPRECATION WARNING: /api/process-sentence is deprecated. Use /api/grammario/analyze instead.');
+    }
     // Compose the prompt for the LLM
     const userPrompt = `Sentence: "${sentence}"
 Please break down the sentence as described.`;

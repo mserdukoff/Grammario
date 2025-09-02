@@ -8,6 +8,8 @@ import { BookOpen, X, Sparkles } from 'lucide-react'
 import { LLMResponse, WordInfo } from '@/types'
 import GrammarQuiz from './GrammarQuiz'
 import VocabularyExpander from './VocabularyExpander'
+import ErrorDisplay from './ErrorDisplay'
+import MorphologyBreakdown from './MorphologyBreakdown'
 
 interface SentenceDisplayProps {
   data: LLMResponse
@@ -15,9 +17,16 @@ interface SentenceDisplayProps {
   sentence: string
   onQuizComplete?: (score: number, totalQuestions: number) => void
   onVocabularyExpand?: (word: string) => void
+  analysisMetadata?: {
+    errors: any[];
+    teaching_notes: any[];
+    normalized?: string;
+    language?: string;
+    tokens?: any[];
+  }
 }
 
-export default function SentenceDisplay({ data, title, sentence, onQuizComplete, onVocabularyExpand }: SentenceDisplayProps) {
+export default function SentenceDisplay({ data, title, sentence, onQuizComplete, onVocabularyExpand, analysisMetadata }: SentenceDisplayProps) {
   const [selectedWord, setSelectedWord] = useState<string | null>(null)
   const [hoveredWord, setHoveredWord] = useState<string | null>(null)
   const [showQuiz, setShowQuiz] = useState(false)
@@ -78,11 +87,20 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
     return []
   }
 
-  const renderWordInfo = (wordData: WordInfo | null | undefined, wordText: string) => {
+  const renderWordInfo = (wordData: WordInfo | null | undefined, wordText: string, wordKey: string) => {
     if (!wordData) {
       return <p>No word data available</p>;
     }
 
+    // Find morphological components for this word from analysisMetadata
+    const wordTokens = analysisMetadata?.tokens || [];
+    const wordToken = wordTokens.find(token => token.text === wordText);
+    const morphComponents = wordToken?.morphological_components || [];
+    
+
+    
+
+    
     return (
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -170,6 +188,16 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
             </div>
           </CardContent>
         </Card>
+
+        {/* Morphological Breakdown - shown right under the word info */}
+        {morphComponents.length > 0 && (
+          <div className="mt-4">
+            <MorphologyBreakdown
+              word={wordText}
+              components={morphComponents}
+            />
+          </div>
+        )}
       </motion.div>
     )
   }
@@ -226,6 +254,11 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
               const isSelected = selectedWord === wordKey;
               const isRelated = hoveredWord && getRelatedWords(hoveredWord).includes(wordKey);
               
+              // Check if this word has morphological components
+              const wordTokens = analysisMetadata?.tokens || [];
+              const wordToken = wordTokens.find(token => token.text === word);
+              const hasMorphBreakdown = wordToken?.morphological_components && wordToken.morphological_components.length > 0;
+              
               return (
                 <motion.span
                   key={wordKey}
@@ -243,6 +276,10 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
                   whileTap={{ scale: 0.95 }}
                 >
                   {word}
+                  {hasMorphBreakdown && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-400 rounded-full animate-pulse" 
+                          title="Click to see word breakdown" />
+                  )}
                 </motion.span>
               )
             })}
@@ -263,9 +300,20 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
         {/* Word Information Display */}
         <AnimatePresence>
           {selectedWord && sentenceData[selectedWord] && (
-            renderWordInfo(sentenceData[selectedWord], selectedWord.split('_')[0])
+            renderWordInfo(sentenceData[selectedWord], selectedWord.split('_')[0], selectedWord)
           )}
         </AnimatePresence>
+
+        {/* Grammar Insights */}
+        {analysisMetadata && (
+          <ErrorDisplay
+            errors={analysisMetadata.errors}
+            teachingNotes={analysisMetadata.teaching_notes}
+            originalSentence={sentence}
+            normalizedSentence={analysisMetadata.normalized}
+            tokens={analysisMetadata.tokens}
+          />
+        )}
 
       </div>
       

@@ -60,7 +60,7 @@ export default function Home() {
   const [selectedSentence, setSelectedSentence] = useState<Sentence | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [currentSentence, setCurrentSentence] = useState<Sentence | null>(null)
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('italian')
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('turkish')
   const [showInput, setShowInput] = useState(false)
   const [showProgressDashboard, setShowProgressDashboard] = useState(false)
   const [newAchievements, setNewAchievements] = useState<Achievement[]>([])
@@ -123,7 +123,7 @@ export default function Home() {
     }
   }
 
-  const addSentence = async (sentence: string, llmResponse: any) => {
+  const addSentence = async (sentence: string, llmResponse: any, analysisMetadata?: any) => {
     // Ensure the data structure matches what we expect
     let relationship_matrix = llmResponse.result?.result?.relationship_matrix || [];
     if (Array.isArray(relationship_matrix) && Array.isArray(relationship_matrix[0])) {
@@ -137,12 +137,29 @@ export default function Home() {
       }
     }
 
+    // Sanitize all data to prevent Firebase undefined value errors
+    const sanitizeForFirebase = (obj: any): any => {
+      if (obj === undefined) return null;
+      if (obj === null || typeof obj !== 'object') return obj;
+      if (Array.isArray(obj)) return obj.map(sanitizeForFirebase);
+      
+      const sanitized: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        const sanitizedValue = sanitizeForFirebase(value);
+        if (sanitizedValue !== null) { // Only include non-null values
+          sanitized[key] = sanitizedValue;
+        }
+      }
+      return sanitized;
+    };
+
     const newSentence: Sentence = {
       id: Date.now().toString(),
       userId: user ? user.uid : "anonymous",
       sentence: sentence,
-      llmResponse: formattedResponse,
+      llmResponse: sanitizeForFirebase(formattedResponse),
       timestamp: Timestamp.now(),
+      analysisMetadata: analysisMetadata ? sanitizeForFirebase(analysisMetadata) : null,
     }
 
     setCurrentSentence(newSentence)
@@ -329,6 +346,7 @@ export default function Home() {
                 data={selectedSentence.llmResponse} 
                 title="Selected Sentence"
                 sentence={selectedSentence.sentence}
+                analysisMetadata={selectedSentence.analysisMetadata}
                 onQuizComplete={async (score, total) => {
                   if (progressTracker) {
                     const achievements = await progressTracker.recordQuizCompletion(score, total, selectedLanguage)
@@ -351,6 +369,7 @@ export default function Home() {
                 data={currentSentence.llmResponse} 
                 title="Analyzed Sentence"
                 sentence={currentSentence.sentence}
+                analysisMetadata={currentSentence.analysisMetadata}
                 onQuizComplete={async (score, total) => {
                   if (progressTracker) {
                     const achievements = await progressTracker.recordQuizCompletion(score, total, selectedLanguage)
@@ -416,6 +435,7 @@ export default function Home() {
                   onSubmit={addSentence}
                   onCancel={() => setShowInput(false)}
                   selectedLanguage={selectedLanguage}
+                  onLanguageChange={setSelectedLanguage}
                 />
               </div>
             </div>

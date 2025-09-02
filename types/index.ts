@@ -33,6 +33,14 @@ export interface Sentence {
   sentence: string;
   llmResponse: LLMResponse;
   timestamp: Timestamp;
+  // Grammar Insights from the new robust analysis system
+  analysisMetadata?: {
+    errors: any[];
+    teaching_notes: any[];
+    normalized?: string;
+    language?: string;
+    tokens?: any[]; // Include tokens for morphological breakdown
+  };
 }
 
 // New types for quiz functionality
