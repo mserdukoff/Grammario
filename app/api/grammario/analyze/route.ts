@@ -24,14 +24,17 @@ const SYSTEM = [
   "Prefer UPOS; include xpos when helpful.",
   "Morphology must be sparse; omit absent/null keys entirely.",
   "CRITICAL: For each word, provide morphological_components that break down the word into its constituent parts (root/stem + affixes).",
+  "CRITICAL: For each word, provide an English translation in the 'translation' field.",
+  "Example token structure: {text: 'bonjour', lemma: 'bonjour', upos: 'INTJ', translation: 'hello'}",
   "For agglutinative languages (Turkish, Finnish, etc.), always decompose complex words into their morphemes.",
   "Example: Turkish 'köyde' → [{type:'root', form:'köy', meaning:'village'}, {type:'suffix', form:'de', function:'locative'}]",
   "For inflected words in any language, show the decomposition (e.g., 'running' → 'run' + 'ing').",
   "If mistakes exist: keep original_sentence intact; set normalized to the correction and add errors[].",
   "Add 1–3 teaching_notes (CEFR A2–B1) explaining morphological processes when relevant.",
   "Syntax: UD-like dependencies; 1-based heads (1..n) or 0 for root tokens with no head.",
-  "If uncertain, output minimal analysis (text + lemma + upos).",
+  "If uncertain, output minimal analysis (text + lemma + upos + translation).",
   "No over-correction: if acceptable, normalized == original_sentence and errors == [].",
+  "REMEMBER: Every token MUST have a 'translation' field with its English equivalent.",
 ].join(" ");
 
 export async function POST(req: NextRequest) {
@@ -120,6 +123,13 @@ export async function POST(req: NextRequest) {
     
     // Parse using family-specific schema for better validation
     const parsed = parseByFamily(family, raw);
+    
+    // Debug: Check if translations are present after parsing
+    console.log('Parsed analysis tokens:');
+    parsed.tokens.forEach((token, index) => {
+      console.log(`Token ${index}: "${token.text}" - translation: ${token.translation || 'MISSING'}`);
+    });
+    
     const clean = normalizeAndCheck(parsed);
 
     return NextResponse.json(clean, { status: 200 });

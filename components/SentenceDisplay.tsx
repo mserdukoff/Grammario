@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BookOpen, X, Sparkles } from 'lucide-react'
 import { LLMResponse, WordInfo } from '@/types'
 import GrammarQuiz from './GrammarQuiz'
 import VocabularyExpander from './VocabularyExpander'
 import ErrorDisplay from './ErrorDisplay'
-import MorphologyBreakdown from './MorphologyBreakdown'
 
 interface SentenceDisplayProps {
   data: LLMResponse
@@ -33,7 +33,7 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
   const [vocabularyWord, setVocabularyWord] = useState<{ word: string; wordData: WordInfo } | null>(null)
 
   const handleWordClick = (word: string) => {
-    setSelectedWord(word === selectedWord ? null : word)
+    setSelectedWord(word === selectedWord ? null : word);
   }
 
   // Function to detect RTL languages
@@ -97,9 +97,43 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
     const wordToken = wordTokens.find(token => token.text === wordText);
     const morphComponents = wordToken?.morphological_components || [];
     
+    // Sort morphological components to show infinitive/root/stem first, then others
+    const sortedComponents = [...morphComponents].sort((a, b) => {
+      const baseTypes = ['infinitive', 'root', 'stem']
+      const aIsBase = baseTypes.includes(a.type)
+      const bIsBase = baseTypes.includes(b.type)
+      
+      if (aIsBase && !bIsBase) return -1
+      if (!aIsBase && bIsBase) return 1
+      
+      // Within base types, prioritize infinitive
+      if (aIsBase && bIsBase) {
+        if (a.type === 'infinitive' && b.type !== 'infinitive') return -1
+        if (a.type !== 'infinitive' && b.type === 'infinitive') return 1
+      }
+      
+      return 0
+    })
 
-    
-
+    const getComponentColor = (type: string) => {
+      switch (type.toLowerCase()) {
+        case 'root':
+        case 'stem':
+          return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+        case 'infinitive':
+          return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-blue-200'
+        case 'inflection':
+          return 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200'
+        case 'prefix':
+          return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+        case 'suffix':
+          return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+        case 'ending':
+          return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+        default:
+          return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+      }
+    }
     
     return (
       <motion.div
@@ -109,10 +143,31 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
         transition={{ duration: 0.3 }}
         className="w-full"
       >
-        <Card className="mt-6 max-w-2xl mx-auto">
+        <Card className="mt-6 max-w-4xl mx-auto border-blue-200 dark:border-blue-800">
           <CardContent className="p-6">
-            <h3 className="text-xl font-bold mb-4 text-center">"{wordText}"</h3>
-            <div className="space-y-3">
+                        <h3 className="text-xl font-bold mb-4 text-center">"{wordText}"</h3>
+            
+            {/* Translation Section */}
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+              <h4 className="text-lg font-semibold mb-3 flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                <span className="text-blue-600 dark:text-blue-400">🌐</span>
+                English Translation
+              </h4>
+              
+              {wordData.translation ? (
+                <p className="text-lg font-medium text-blue-900 dark:text-blue-100">
+                  {wordData.translation}
+                </p>
+              ) : (
+                <p className="text-sm text-blue-700 dark:text-blue-300 italic">
+                  No translation available
+                </p>
+                )}
+            </div>
+            
+            {/* Grammar Information Section - Temporarily hidden */}
+            {/* 
+            <div className="space-y-3 mb-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                 <span className="font-semibold text-sm text-gray-600 dark:text-gray-400">Part of Speech:</span>
                 <span className="text-base">{wordData.part_of_speech}</span>
@@ -171,6 +226,78 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
                 </div>
               )}
             </div>
+            */}
+
+            {/* Morphological Breakdown Section */}
+            {morphComponents.length > 0 && (
+              <>
+                <div className="border-t pt-6 mb-4">
+                  <h4 className="text-lg font-semibold mb-4 flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                    <span className="text-blue-600 dark:text-blue-400">🔍</span>
+                    Word Breakdown
+                  </h4>
+                  
+                  {/* Visual breakdown */}
+                  <div className="flex flex-wrap items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-4">
+                    {sortedComponents.map((component, index) => (
+                      <div key={index} className="flex items-center">
+                        {index > 0 && (
+                          <span className="mx-2 text-gray-400">+</span>
+                        )}
+                        <Badge 
+                          variant="secondary" 
+                          className={`${getComponentColor(component.type)} font-mono text-sm px-3 py-1`}
+                        >
+                          {component.form}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Detailed breakdown */}
+                  <div className="space-y-3 mb-4">
+                    <h5 className="font-medium text-sm text-gray-600 dark:text-gray-400">Component Details:</h5>
+                    {sortedComponents.map((component, index) => (
+                      <div key={index} className="flex items-start gap-3 p-3 bg-white dark:bg-gray-900 rounded-lg border">
+                        <Badge className={getComponentColor(component.type)}>
+                          {component.type}
+                        </Badge>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-mono font-bold text-lg">{component.form}</span>
+                            {component.function && (
+                              <Badge variant="outline" className="text-xs">
+                                {component.function}
+                              </Badge>
+                            )}
+                          </div>
+                          {component.meaning && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Meaning: {component.meaning}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Assembly demonstration */}
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      <strong>How it's built:</strong>{' '}
+                      {sortedComponents.map((comp, i) => (
+                        <span key={i}>
+                          {i > 0 && ' + '}
+                          <span className="font-mono">{comp.form}</span>
+                          {comp.meaning && ` (${comp.meaning})`}
+                        </span>
+                      ))}
+                      {' '}= <span className="font-mono font-bold">{wordText}</span>
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
             
             {/* Vocabulary Expansion Button */}
             <div className="pt-4 border-t">
@@ -188,16 +315,6 @@ export default function SentenceDisplay({ data, title, sentence, onQuizComplete,
             </div>
           </CardContent>
         </Card>
-
-        {/* Morphological Breakdown - shown right under the word info */}
-        {morphComponents.length > 0 && (
-          <div className="mt-4">
-            <MorphologyBreakdown
-              word={wordText}
-              components={morphComponents}
-            />
-          </div>
-        )}
       </motion.div>
     )
   }

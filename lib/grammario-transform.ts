@@ -154,7 +154,12 @@ export function transformAnalysisToLLMResponse(
       noun_case_components: extractCaseComponents(token),
       verb_tense: extractTense(token),
       verb_tense_components: extractTenseComponents(token),
+      translation: token.translation || null, // Include English translation
     };
+    
+    // Debug logging
+    console.log(`Token "${token.text}" translation:`, token.translation);
+    console.log(`WordInfo translation:`, wordInfo.translation);
     
     sentence[key] = wordInfo;
   });

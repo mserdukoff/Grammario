@@ -18,6 +18,8 @@ export const Token = z.object({
   lemma: z.string().optional(),
   upos: z.string(),
   xpos: z.string().optional(),
+  // English translation of the word
+  translation: z.string().optional(),
   morphology: z
     .object({
       number: z.string().optional(),
