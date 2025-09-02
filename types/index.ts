@@ -12,6 +12,7 @@ export interface WordInfo {
   noun_case_components?: string | null;
   verb_tense?: string | null;
   verb_tense_components?: string[] | null;
+  translation?: string | null; // English translation of the word
 }
 
 export interface LLMResponse {

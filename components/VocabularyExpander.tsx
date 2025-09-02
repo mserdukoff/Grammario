@@ -237,25 +237,34 @@ export default function VocabularyExpander({ word, wordData, language, onClose }
 
                 {/* Grammar Info */}
                 <div className="grid md:grid-cols-2 gap-4">
-                  <Card>
+                  <Card className="border-blue-200 dark:border-blue-800">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-sm">Grammar Information</CardTitle>
+                      <CardTitle className="flex items-center gap-2 text-blue-800 dark:text-blue-200">
+                        <BookOpen className="h-4 w-4" />
+                        Grammar Information
+                      </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Part of Speech:</span>
-                        <Badge variant="outline">{wordData.part_of_speech}</Badge>
+                    <CardContent className="space-y-3">
+                      <div className="border-l-4 border-blue-400 pl-4 py-2">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm text-blue-900 dark:text-blue-100 font-medium">Part of Speech:</span>
+                          <Badge variant="secondary" className="text-xs">{wordData.part_of_speech}</Badge>
+                        </div>
                       </div>
                       {wordData.root && wordData.root !== word && (
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Root:</span>
-                          <span className="text-sm font-medium">{wordData.root}</span>
+                        <div className="border-l-4 border-blue-400 pl-4 py-2">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm text-blue-900 dark:text-blue-100 font-medium">Root:</span>
+                            <span className="text-sm text-blue-700 dark:text-blue-300">{wordData.root}</span>
+                          </div>
                         </div>
                       )}
                       {wordData.gender && (
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Gender:</span>
-                          <span className="text-sm font-medium">{wordData.gender}</span>
+                        <div className="border-l-4 border-blue-400 pl-4 py-2">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm text-blue-900 dark:text-blue-100 font-medium">Gender:</span>
+                            <span className="text-sm text-blue-700 dark:text-blue-300">{wordData.gender}</span>
+                          </div>
                         </div>
                       )}
                     </CardContent>

@@ -53,6 +53,8 @@ const BaseToken = z.object({
   lemma: z.string().optional(),
   upos: z.string(),                 // prefer UPOS; xpos optional
   xpos: z.string().optional(),
+  // English translation of the word
+  translation: z.string().optional(),
   gloss: z.string().optional(),     // interlinear gloss for the whole token if handy
   head: z.number().int().optional(),// 0-based; 0 means no head (root), 1..n are valid heads
   deprel: z.string().optional(),
@@ -231,6 +233,7 @@ export const FAMILY_SYSTEM_PROMPT: Record<Family, string> = {
     "You are Grammario analyzing a Turkic sentence (Turkish, Azerbaijani, Kazakh, etc.).",
     "IMPORTANT: Analyze the sentence as-is in the source Turkic language. Do NOT translate or convert to any other language.",
     "Output ONLY JSON via the provided function schema; omit null/unused keys.",
+    "CRITICAL: For each word, provide an English translation in the 'translation' field.",
     "Emphasize agglutinative morphology: identify lexical roots and decompose ALL individual suffixes in linear order.",
     "For each token: provide root (if recoverable), suffix_chain[] with INDIVIDUAL morphemes {type, form, gloss?, function?}, AND morphological_components[] for UI display.",
     "CRITICAL: Break down complex suffixes into individual morphemes. For example, Turkish '-diğinde' should be split into '-diğin' + '-de', not kept as one unit.",
@@ -243,6 +246,7 @@ export const FAMILY_SYSTEM_PROMPT: Record<Family, string> = {
     "You are Grammario analyzing a Semitic sentence (Arabic, Hebrew, Aramaic, etc.).",
     "IMPORTANT: Analyze the sentence as-is in the source Semitic language. Do NOT translate or convert to any other language.",
     "Output ONLY JSON via the provided function schema; omit null/unused keys.",
+    "CRITICAL: For each word, provide an English translation in the 'translation' field.",
     "Emphasize root-and-template morphology: identify consonantal root, template/pattern, vocalization, and any affixes with positions.",
     "For each token: root_consonants, template (e.g., CaCaC), pattern_label (e.g., binyan/Form), vocalization if known, affixes[].",
     "Fill features sparsely (person, number, gender, tense, aspect, mood, state, definiteness, part).",
@@ -254,6 +258,7 @@ export const FAMILY_SYSTEM_PROMPT: Record<Family, string> = {
     "You are Grammario analyzing a Slavic sentence (Russian, Polish, Czech, etc.).",
     "IMPORTANT: Analyze the sentence as-is in the source Slavic language. Do NOT translate or convert to any other language.",
     "Output ONLY JSON via the provided function schema; omit null/unused keys.",
+    "CRITICAL: For each word, provide an English translation in the 'translation' field.",
     "Emphasize fusional inflection and prefixes: for each token, identify prefix_chain, stem, ending, and any stem_mutation.",
     "Populate features sparsely: case/number/gender for nominals; person/number/tense/mood/aspect/voice for verbs.",
     "Use UPOS; include XPOS when helpful. Syntax uses 0-based heads (0=no head/root, 1..n=valid heads); UD-style deprels.",
@@ -264,6 +269,7 @@ export const FAMILY_SYSTEM_PROMPT: Record<Family, string> = {
     "You are Grammario analyzing a Romance sentence (Spanish, Italian, French, etc.).",
     "IMPORTANT: Analyze the sentence as-is in the source Romance language. Do NOT translate or convert to any other language.",
     "Output ONLY JSON via the provided function schema; omit null/unused keys.",
+    "CRITICAL: For each word, provide an English translation in the 'translation' field.",
     "Focus on CONJUGATION and meaningful inflection, NOT artificial morphological breakdown.",
     "For VERBS: provide stem/ending breakdown with conjugation_class, irregular_stem flag, person/number/tense/mood/aspect.",
     "For NOUNS/ADJECTIVES: only provide stem/ending if there is actual inflection (gender/number agreement). Simple words like 'casa', 'sopra', 'che' should have empty stem/ending.",
@@ -276,6 +282,7 @@ export const FAMILY_SYSTEM_PROMPT: Record<Family, string> = {
     "You are Grammario analyzing a Germanic sentence (English, German, Dutch, etc.).",
     "IMPORTANT: Analyze the sentence as-is in the source Germanic language. Do NOT translate or convert to any other language.",
     "Output ONLY JSON via the provided function schema; omit null/unused keys.",
+    "CRITICAL: For each word, provide an English translation in the 'translation' field.",
     "Emphasize compounding, separable prefixes, and internal changes: list compound_parts, separable_prefix, suffix_chain, and internal_change if any.",
     "Populate features sparsely (person/number/tense/mood; comparison; noun_number). strong_verb_grade when relevant.",
     "Use UPOS; include XPOS when helpful. Syntax uses 0-based heads (0=no head/root, 1..n=valid heads); UD-style deprels.",
