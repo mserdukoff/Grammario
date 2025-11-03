@@ -15,6 +15,7 @@ import {
   FAMILY_SYSTEM_PROMPT,
   type Family
 } from "@/lib/grammario-groups";
+import { ADMIN_UID } from "@/lib/admin-logger";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -38,19 +39,41 @@ const SYSTEM = [
 ].join(" ");
 
 export async function POST(req: NextRequest) {
+  // Declare variables at function scope for use in catch blocks
+  let isAdmin = false;
+  let sentence: string | undefined;
+  let languageHint: string | undefined;
+  let userId: string | undefined;
+  let family: Family | undefined;
+  
   try {
     // Check API key first
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 });
     }
 
-    const { sentence, languageHint } = await req.json();
+    // Parse request body with error handling
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (parseError) {
+      console.error("Failed to parse request body:", parseError);
+      return NextResponse.json({ 
+        error: "Invalid request body", 
+        details: parseError instanceof Error ? parseError.message : "Could not parse JSON"
+      }, { status: 400 });
+    }
+
+    ({ sentence, languageHint, userId } = requestBody);
     if (!sentence || typeof sentence !== "string") {
       return NextResponse.json({ error: "Missing 'sentence' string" }, { status: 400 });
     }
 
+    isAdmin = userId === ADMIN_UID;
+    const requestStartTime = Date.now();
+
     // Detect language family and get appropriate tools/prompt
-    const family = detectFamily(languageHint);
+    family = detectFamily(languageHint);
     const tools = toolsForFamily(family);
     const systemPrompt = FAMILY_SYSTEM_PROMPT[family];
 
@@ -78,10 +101,27 @@ export async function POST(req: NextRequest) {
       });
     } catch (apiError) {
       console.error("OpenAI API Error:", apiError);
-      return NextResponse.json({ 
+      const errorResponse: any = { 
         error: "OpenAI API request failed", 
         details: apiError instanceof Error ? apiError.message : "Unknown API error"
-      }, { status: 502 });
+      };
+      
+      // Log error for admin user
+      if (isAdmin) {
+        errorResponse._adminLogData = {
+          error: true,
+          errorType: "OpenAI API Error",
+          errorMessage: apiError instanceof Error ? apiError.message : "Unknown API error",
+          errorStack: apiError instanceof Error ? apiError.stack : undefined,
+          requestData: {
+            sentence,
+            languageHint,
+            family,
+          },
+        };
+      }
+      
+      return NextResponse.json(errorResponse, { status: 502 });
     }
 
     console.log("OpenAI API response received:", {
@@ -98,7 +138,20 @@ export async function POST(req: NextRequest) {
         hasToolCalls: !!resp.choices[0]?.message?.tool_calls,
         toolCallsLength: resp.choices[0]?.message?.tool_calls?.length || 0
       });
-      return NextResponse.json({ error: "Model did not return function arguments" }, { status: 502 });
+      const noToolCallResponse: any = { error: "Model did not return function arguments" };
+      if (isAdmin) {
+        noToolCallResponse._adminLogData = {
+          error: true,
+          errorType: "No Tool Call",
+          errorMessage: "Model did not return function arguments",
+          requestData: {
+            sentence,
+            languageHint,
+            family,
+          },
+        };
+      }
+      return NextResponse.json(noToolCallResponse, { status: 502 });
     }
 
     // Debug: Log the raw function arguments before parsing
@@ -114,11 +167,28 @@ export async function POST(req: NextRequest) {
     } catch (parseError) {
       console.error("JSON Parse Error:", parseError);
       console.error("Failed to parse:", toolCall.function.arguments);
-      return NextResponse.json({ 
+      const errorResponse: any = { 
         error: "Invalid JSON in model response", 
         details: parseError instanceof Error ? parseError.message : "Unknown parse error",
         rawResponse: toolCall.function.arguments?.slice(0, 500) // First 500 chars for debugging
-      }, { status: 502 });
+      };
+      
+      // Log error for admin user
+      if (isAdmin) {
+        errorResponse._adminLogData = {
+          error: true,
+          errorType: "JSON Parse Error",
+          errorMessage: parseError instanceof Error ? parseError.message : "Unknown parse error",
+          rawFunctionArguments: toolCall.function.arguments,
+          requestData: {
+            sentence,
+            languageHint,
+            family,
+          },
+        };
+      }
+      
+      return NextResponse.json(errorResponse, { status: 502 });
     }
     
     // Parse using family-specific schema for better validation
@@ -132,16 +202,70 @@ export async function POST(req: NextRequest) {
     
     const clean = normalizeAndCheck(parsed);
 
-    return NextResponse.json(clean, { status: 200 });
+    const responseTime = Date.now() - requestStartTime;
+
+    // For admin user, include raw LLM response data for logging
+    const response: any = { ...clean };
+    if (isAdmin) {
+      response._adminLogData = {
+        rawFunctionArguments: toolCall.function.arguments,
+        rawOpenAIResponse: {
+          choices: resp.choices,
+          usage: resp.usage,
+        },
+        parsedBeforeValidation: raw,
+        responseTime,
+        requestData: {
+          sentence,
+          languageHint,
+          family,
+        },
+      };
+    }
+
+    return NextResponse.json(response, { status: 200 });
   } catch (err: any) {
     if (err instanceof ZodError) {
       const summary = err.issues
         .map((i) => `${(i.path && i.path.join(".")) || "(root)"}: ${i.message}`)
         .slice(0, 6)
         .join("; ");
-      return NextResponse.json({ error: summary }, { status: 422 });
+      const zodErrorResponse: any = { error: summary };
+      
+      // Log validation error for admin user
+      if (isAdmin) {
+        zodErrorResponse._adminLogData = {
+          error: true,
+          errorType: "Validation Error",
+          errorMessage: summary,
+          validationIssues: err.issues,
+          requestData: {
+            sentence,
+            languageHint,
+            family,
+          },
+        };
+      }
+      
+      return NextResponse.json(zodErrorResponse, { status: 422 });
     }
     console.error(err);
-    return NextResponse.json({ error: err?.message || "Internal error" }, { status: 500 });
+    const internalErrorResponse: any = { error: err?.message || "Internal error" };
+    
+    // Log internal error for admin user
+    if (isAdmin) {
+      internalErrorResponse._adminLogData = {
+        error: true,
+        errorType: "Internal Error",
+        errorMessage: err?.message || "Internal error",
+        errorStack: err?.stack,
+        requestData: {
+          sentence,
+          languageHint,
+        },
+      };
+    }
+    
+    return NextResponse.json(internalErrorResponse, { status: 500 });
   }
 }
