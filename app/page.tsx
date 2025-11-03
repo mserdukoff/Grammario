@@ -21,6 +21,8 @@ import { ProgressTracker } from "@/lib/progress-tracker"
 import ProgressDashboard from "@/components/ProgressDashboard"
 import AchievementNotification from "@/components/AchievementNotification"
 import QuizGenerator from "@/components/QuizGenerator"
+import AdminDashboard from "@/components/AdminDashboard"
+import { isAdminUser } from "@/lib/admin-logger"
 
 // Type adapter to convert between Canvas and Sidebar LLMResponse formats
 const adaptLLMResponse = (response: LLMResponse): LLMResponse => {
@@ -63,6 +65,7 @@ export default function Home() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('turkish')
   const [showInput, setShowInput] = useState(false)
   const [showProgressDashboard, setShowProgressDashboard] = useState(false)
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false)
   const [newAchievements, setNewAchievements] = useState<Achievement[]>([])
   const [progressTracker, setProgressTracker] = useState<ProgressTracker | null>(null)
   const [showQuiz, setShowQuiz] = useState(false)
@@ -338,7 +341,7 @@ export default function Home() {
         initialIsOpen={!isMobile}
       />
       <div className="flex-1 flex flex-col h-full">
-        <Header user={user} />
+        <Header user={user} onAdminDashboardClick={() => setShowAdminDashboard(true)} />
         <main className="flex-1 relative">
           <div className="absolute inset-0">
             {selectedSentence ? (
@@ -436,6 +439,7 @@ export default function Home() {
                   onCancel={() => setShowInput(false)}
                   selectedLanguage={selectedLanguage}
                   onLanguageChange={setSelectedLanguage}
+                  userId={user?.uid}
                 />
               </div>
             </div>
@@ -462,6 +466,14 @@ export default function Home() {
         <ProgressDashboard
           userId={user.uid}
           onClose={() => setShowProgressDashboard(false)}
+        />
+      )}
+
+      {/* Admin Dashboard Modal */}
+      {showAdminDashboard && user && isAdminUser(user.uid) && (
+        <AdminDashboard
+          userId={user.uid}
+          onClose={() => setShowAdminDashboard(false)}
         />
       )}
       
