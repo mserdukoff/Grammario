@@ -6,7 +6,7 @@ import AdminDashboard from "@/components/AdminDashboard"
 import Header from "@/components/Header"
 import { auth } from "@/lib/firebase"
 
-const ADMIN_UID = "NFRmYOAhcgeulxcQQsBKutehfUh1"
+const ADMIN_UID = process.env.NEXT_PUBLIC_ADMIN_UID || ""
 
 export default function AdminPage() {
   const [user, setUser] = useState<User | null>(null)
@@ -30,6 +30,23 @@ export default function AdminPage() {
             <p>Loading...</p>
           </div>
         </div>
+      </div>
+    )
+  }
+
+  // Check if admin UID is configured
+  if (!ADMIN_UID) {
+    return (
+      <div className="flex flex-col h-screen">
+        <Header user={user} />
+        <main className="flex-1 overflow-hidden flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold mb-4">Configuration Error</h1>
+            <p className="text-muted-foreground">
+              Admin UID is not configured. Please set NEXT_PUBLIC_ADMIN_UID environment variable.
+            </p>
+          </div>
+        </main>
       </div>
     )
   }

@@ -9,7 +9,7 @@ import { Moon, Sun, Database } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useRouter } from "next/navigation"
 
-const ADMIN_UID = "NFRmYOAhcgeulxcQQsBKutehfUh1"
+const ADMIN_UID = process.env.NEXT_PUBLIC_ADMIN_UID || ""
 
 interface HeaderProps {
   user: User | null
@@ -31,7 +31,7 @@ export default function Header({ user }: HeaderProps) {
     setTheme(theme === "dark" ? "light" : "dark")
   }
 
-  const isAdmin = user?.uid === ADMIN_UID
+  const isAdmin = ADMIN_UID && user?.uid === ADMIN_UID
 
   return (
     <>

@@ -4,6 +4,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // Helper function to check if user is admin
+    // NOTE: Firestore security rules don't support environment variables.
+    // This UID must be manually updated to match NEXT_PUBLIC_ADMIN_UID when deploying.
+    // TODO: Consider using a build script to inject the admin UID from env vars during deployment.
     function isAdmin() {
       return request.auth != null && request.auth.uid == 'NFRmYOAhcgeulxcQQsBKutehfUh1';
     }
