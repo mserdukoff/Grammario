@@ -1,0 +1,102 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == 'NFRmYOAhcgeulxcQQsBKutehfUh1';
+    }
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Sentences collection rules
+    match /sentences/{document} {
+      // Allow users to create their own sentences
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      
+      // Allow users to read their own sentences OR allow authenticated users to read all (for dashboard)
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        true // Allow all authenticated users to read for dashboard
+      );
+      
+      // Allow users to update/delete their own sentences
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Quizzes collection rules
+    match /quizzes/{document} {
+      // Allow users to create their own quizzes
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      
+      // Allow users to read their own quizzes OR allow authenticated users to read all (for dashboard)
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        true // Allow all authenticated users to read for dashboard
+      );
+      
+      // Allow users to update/delete their own quizzes
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Test collection (for debugging)
+    match /test/{document} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        true // Allow all authenticated users to read for dashboard
+      );
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // User progress collection
+    match /user_progress/{userId} {
+      // Allow users to read/write their own progress OR allow authenticated users to read all (for dashboard)
+      allow read: if isAuthenticated() && (
+        userId == request.auth.uid ||
+        true // Allow all authenticated users to read for dashboard
+      );
+      allow write: if isAuthenticated() && userId == request.auth.uid;
+    }
+    
+    // Study sessions collection
+    match /study_sessions/{document} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        true // Allow all authenticated users to read for dashboard
+      );
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Achievement unlocks collection
+    match /achievement_unlocks/{document} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        true // Allow all authenticated users to read for dashboard
+      );
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Admin logs collection - allow writes without auth (server-side only), reads restricted to admin
+    match /admin_logs/{document} {
+      // Allow writes without authentication (server-side API routes don't have auth tokens)
+      allow write: if true;
+      // Only admin can read
+      allow read: if isAdmin();
+    }
+    
+    // Error logs collection - allow writes without auth (server-side only), reads restricted to admin
+    match /error_logs/{document} {
+      // Allow writes without authentication (server-side API routes don't have auth tokens)
+      allow write: if true;
+      // Only admin can read
+      allow read: if isAdmin();
+    }
+  }
+}

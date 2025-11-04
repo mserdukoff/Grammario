@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { logError } from '@/lib/error-logger';
+import { logError, logAdminCall } from '@/lib/error-logger';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -65,10 +65,29 @@ STRICT RULES:
 - Definition must be a simple English equivalent (1-3 words only)`;
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+  let userId: string | null | undefined;
+  let rawInput: any;
+  let rawLLMOutput: any;
+  
   try {
-    const { word, language, partOfSpeech, root }: VocabularyRequest = await req.json();
+    const requestBody = await req.json();
+    const { word, language, partOfSpeech, root, userId: requestUserId }: VocabularyRequest & { userId?: string } = requestBody;
+    userId = requestUserId || null;
+    rawInput = { word, language, partOfSpeech, root, userId };
     
     if (!word || !language) {
+      const duration = Date.now() - startTime;
+      await logAdminCall({
+        endpoint: '/api/vocabulary-expand',
+        method: 'POST',
+        userId: userId || null,
+        userAgent: req.headers.get('user-agent') || undefined,
+        rawInput: rawInput,
+        statusCode: 400,
+        duration,
+        error: { message: 'Word and language are required' },
+      }).catch(() => {});
       return NextResponse.json({ error: 'Word and language are required' }, { status: 400 });
     }
 
@@ -89,11 +108,26 @@ Provide comprehensive vocabulary expansion data for this word.`;
     });
 
     const raw = completion.choices[0].message?.content?.trim() || '';
+    rawLLMOutput = completion;
 
     // Extract JSON from response
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error('No JSON found in LLM response:', raw);
+      const duration = Date.now() - startTime;
+      
+      // Log to admin_logs
+      await logAdminCall({
+        endpoint: '/api/vocabulary-expand',
+        method: 'POST',
+        userId: userId || null,
+        userAgent: req.headers.get('user-agent') || undefined,
+        rawInput: rawInput,
+        rawLLMOutput: rawLLMOutput,
+        statusCode: 500,
+        duration,
+        error: { message: 'No JSON found in LLM response' },
+      }).catch(() => {});
       
       // Log error with full LLM response
       await logError({
@@ -113,6 +147,20 @@ Provide comprehensive vocabulary expansion data for this word.`;
       vocabularyData = JSON.parse(jsonMatch[0]);
     } catch (err) {
       console.error('JSON parse error:', err);
+      const duration = Date.now() - startTime;
+      
+      // Log to admin_logs
+      await logAdminCall({
+        endpoint: '/api/vocabulary-expand',
+        method: 'POST',
+        userId: userId || null,
+        userAgent: req.headers.get('user-agent') || undefined,
+        rawInput: rawInput,
+        rawLLMOutput: rawLLMOutput,
+        statusCode: 500,
+        duration,
+        error: err instanceof Error ? err : { message: String(err) },
+      }).catch(() => {});
       
       // Log error with full faulty LLM response
       await logError({
@@ -129,6 +177,21 @@ Provide comprehensive vocabulary expansion data for this word.`;
 
     // Validate required fields
     if (!vocabularyData.word || !vocabularyData.definition) {
+      const duration = Date.now() - startTime;
+      
+      // Log to admin_logs
+      await logAdminCall({
+        endpoint: '/api/vocabulary-expand',
+        method: 'POST',
+        userId: userId || null,
+        userAgent: req.headers.get('user-agent') || undefined,
+        rawInput: rawInput,
+        rawLLMOutput: rawLLMOutput,
+        statusCode: 500,
+        duration,
+        error: { message: 'Incomplete vocabulary data' },
+      }).catch(() => {});
+      
       // Log validation error with LLM response
       await logError({
         error: new Error('Incomplete vocabulary data'),
@@ -149,10 +212,39 @@ Provide comprehensive vocabulary expansion data for this word.`;
     vocabularyData.derivatives = vocabularyData.derivatives || [];
     vocabularyData.examples = vocabularyData.examples || [];
 
+    const duration = Date.now() - startTime;
+    
+    // Log successful request to admin_logs
+    await logAdminCall({
+      endpoint: '/api/vocabulary-expand',
+      method: 'POST',
+      userId: userId || null,
+      userAgent: req.headers.get('user-agent') || undefined,
+      rawInput: rawInput,
+      rawLLMOutput: rawLLMOutput,
+      responseData: vocabularyData,
+      statusCode: 200,
+      duration,
+    }).catch(() => {});
+
     return NextResponse.json(vocabularyData);
 
   } catch (error: any) {
     console.error('Vocabulary expansion API error:', error);
+    const duration = Date.now() - startTime;
+    
+    // Log to admin_logs
+    await logAdminCall({
+      endpoint: '/api/vocabulary-expand',
+      method: 'POST',
+      userId: userId || null,
+      userAgent: req.headers.get('user-agent') || undefined,
+      rawInput: rawInput,
+      rawLLMOutput: rawLLMOutput,
+      statusCode: 500,
+      duration,
+      error: error,
+    }).catch(() => {});
     
     // Log error
     await logError({

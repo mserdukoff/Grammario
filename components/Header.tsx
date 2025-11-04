@@ -9,6 +9,8 @@ import { Moon, Sun, Database } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useRouter } from "next/navigation"
 
+const ADMIN_UID = "NFRmYOAhcgeulxcQQsBKutehfUh1"
+
 interface HeaderProps {
   user: User | null
 }
@@ -29,6 +31,8 @@ export default function Header({ user }: HeaderProps) {
     setTheme(theme === "dark" ? "light" : "dark")
   }
 
+  const isAdmin = user?.uid === ADMIN_UID
+
   return (
     <>
       <header className="bg-background border-b">
@@ -44,16 +48,18 @@ export default function Header({ user }: HeaderProps) {
               >
                 {theme === "dark" ? <Sun className="h-[1.2rem] w-[1.2rem]" /> : <Moon className="h-[1.2rem] w-[1.2rem]" />}
               </Button>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => router.push('/admin')}
-                aria-label="Admin Dashboard"
-                className="flex-shrink-0"
-                title="Admin Dashboard"
-              >
-                <Database className="h-[1.2rem] w-[1.2rem]" />
-              </Button>
+              {isAdmin && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => router.push('/admin')}
+                  aria-label="Admin Dashboard"
+                  className="flex-shrink-0"
+                  title="Admin Dashboard"
+                >
+                  <Database className="h-[1.2rem] w-[1.2rem]" />
+                </Button>
+              )}
             </div>
             
             <div className="flex items-center space-x-2 sm:space-x-4">

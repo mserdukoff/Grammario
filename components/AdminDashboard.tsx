@@ -19,7 +19,8 @@ import {
   TrendingUp,
   BookOpen,
   Search,
-  User as UserIcon
+  User as UserIcon,
+  Home
 } from 'lucide-react'
 import { collection, getDocs, query, orderBy, limit, where, Timestamp } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -679,13 +680,23 @@ export default function AdminDashboard() {
       <div className="h-full overflow-y-auto p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" onClick={() => setSelectedUserId(null)}>
+            <Button variant="outline" size="icon" onClick={() => setSelectedUserId(null)} title="Back to Users">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <UserIcon className="h-6 w-6" />
               User Details: {selectedUserId}
             </h1>
+            <div className="ml-auto flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => router.push('/')}
+                title="Back to Grammario"
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Back to App
+              </Button>
+            </div>
           </div>
 
           <Card>
@@ -813,9 +824,19 @@ export default function AdminDashboard() {
             <Database className="h-8 w-8" />
             Admin Dashboard
           </h1>
-          <Button variant="outline" size="icon" onClick={loadDashboardData}>
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => router.push('/')}
+              title="Back to Grammario"
+            >
+              <Home className="h-4 w-4 mr-2" />
+              Back to App
+            </Button>
+            <Button variant="outline" size="icon" onClick={loadDashboardData} title="Refresh Dashboard">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab}>

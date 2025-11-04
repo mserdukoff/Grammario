@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { logError } from '@/lib/error-logger';
+import { logError, logAdminCall } from '@/lib/error-logger';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -33,9 +33,29 @@ interface LLMResponse {
 }
 
 export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+  let userId: string | null | undefined;
+  let rawInput: any;
+  let rawLLMOutput: any;
+  
   try {
-    const { sentence } = await req.json();
+    const requestBody = await req.json();
+    const { sentence, userId: requestUserId } = requestBody;
+    userId = requestUserId || null;
+    rawInput = { sentence, userId };
+    
     if (!sentence) {
+      const duration = Date.now() - startTime;
+      await logAdminCall({
+        endpoint: '/api/process-sentence',
+        method: 'POST',
+        userId: userId || null,
+        userAgent: req.headers.get('user-agent') || undefined,
+        rawInput: rawInput,
+        statusCode: 400,
+        duration,
+        error: { message: 'No sentence provided' },
+      }).catch(() => {});
       return NextResponse.json({ error: 'No sentence provided' }, { status: 400 });
     }
 
@@ -57,6 +77,7 @@ Please break down the sentence as described.`;
     });
 
     const raw = completion.choices[0].message?.content?.trim() || '';
+    rawLLMOutput = completion;
     
     // Log the raw response to server console
     console.log('\n=== New LLM Response ===');
@@ -67,6 +88,20 @@ Please break down the sentence as described.`;
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error('LLM raw output:', raw);
+      const duration = Date.now() - startTime;
+      
+      // Log to admin_logs
+      await logAdminCall({
+        endpoint: '/api/process-sentence',
+        method: 'POST',
+        userId: userId || null,
+        userAgent: req.headers.get('user-agent') || undefined,
+        rawInput: rawInput,
+        rawLLMOutput: rawLLMOutput,
+        statusCode: 400,
+        duration,
+        error: { message: 'No JSON found in LLM response' },
+      }).catch(() => {});
       
       // Log error with full LLM response
       await logError({
@@ -120,9 +155,38 @@ Please break down the sentence as described.`;
         throw new Error('No words were processed in the response');
       }
 
+      const duration = Date.now() - startTime;
+      
+      // Log successful request to admin_logs
+      await logAdminCall({
+        endpoint: '/api/process-sentence',
+        method: 'POST',
+        userId: userId || null,
+        userAgent: req.headers.get('user-agent') || undefined,
+        rawInput: rawInput,
+        rawLLMOutput: rawLLMOutput,
+        responseData: transformedResponse,
+        statusCode: 200,
+        duration,
+      }).catch(() => {});
+
       return NextResponse.json({ result: transformedResponse });
     } catch (err) {
       console.error('Error processing LLM response:', err);
+      const duration = Date.now() - startTime;
+      
+      // Log to admin_logs
+      await logAdminCall({
+        endpoint: '/api/process-sentence',
+        method: 'POST',
+        userId: userId || null,
+        userAgent: req.headers.get('user-agent') || undefined,
+        rawInput: rawInput,
+        rawLLMOutput: rawLLMOutput,
+        statusCode: 400,
+        duration,
+        error: err instanceof Error ? err : { message: String(err) },
+      }).catch(() => {});
       
       // Log error with full faulty LLM response
       await logError({
@@ -138,6 +202,20 @@ Please break down the sentence as described.`;
     }
   } catch (error: any) {
     console.error('API error:', error);
+    const duration = Date.now() - startTime;
+    
+    // Log to admin_logs
+    await logAdminCall({
+      endpoint: '/api/process-sentence',
+      method: 'POST',
+      userId: userId || null,
+      userAgent: req.headers.get('user-agent') || undefined,
+      rawInput: rawInput,
+      rawLLMOutput: rawLLMOutput,
+      statusCode: 500,
+      duration,
+      error: error,
+    }).catch(() => {});
     
     // Log error
     await logError({

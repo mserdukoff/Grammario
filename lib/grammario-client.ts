@@ -1,12 +1,16 @@
 import { AnalysisSchema, type Analysis } from "@/lib/grammario";
 import { detectFamily, parseByFamily } from "@/lib/grammario-groups";
+import { auth } from "@/lib/firebase";
 
-export async function analyze(sentence: string, languageHint?: string): Promise<Analysis> {
+export async function analyze(sentence: string, languageHint?: string, userId?: string | null): Promise<Analysis> {
   try {
+    // Get current user if userId not provided
+    const currentUserId = userId !== undefined ? userId : (auth.currentUser?.uid || null);
+    
     const r = await fetch("/api/grammario/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sentence, languageHint }),
+      body: JSON.stringify({ sentence, languageHint, userId: currentUserId }),
     });
     
     let responseData;
