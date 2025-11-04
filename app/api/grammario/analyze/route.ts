@@ -15,6 +15,7 @@ import {
   FAMILY_SYSTEM_PROMPT,
   type Family
 } from "@/lib/grammario-groups";
+import { logError } from "@/lib/error-logger";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -75,6 +76,15 @@ export async function POST(req: NextRequest) {
       });
     } catch (apiError) {
       console.error("OpenAI API Error:", apiError);
+      // Log error to database with full LLM response context
+      await logError({
+        error: apiError,
+        endpoint: '/api/grammario/analyze',
+        requestData: { sentence, languageHint, family },
+        httpStatus: 502,
+        userAgent: req.headers.get('user-agent') || undefined,
+      }).catch(err => console.error('Failed to log error:', err));
+      
       return NextResponse.json({ 
         error: "OpenAI API request failed", 
         details: apiError instanceof Error ? apiError.message : "Unknown API error"
@@ -89,12 +99,24 @@ export async function POST(req: NextRequest) {
 
     const toolCall = resp.choices[0]?.message?.tool_calls?.[0];
     if (!toolCall?.function?.arguments) {
-      console.error("OpenAI Response Debug:", {
+      const errorDetails = {
         choices: resp.choices?.length || 0,
         message: resp.choices[0]?.message,
         hasToolCalls: !!resp.choices[0]?.message?.tool_calls,
         toolCallsLength: resp.choices[0]?.message?.tool_calls?.length || 0
-      });
+      };
+      console.error("OpenAI Response Debug:", errorDetails);
+      
+      // Log error with full LLM response
+      await logError({
+        error: new Error("Model did not return function arguments"),
+        endpoint: '/api/grammario/analyze',
+        requestData: { sentence, languageHint, family },
+        fullLLMResponse: JSON.stringify(resp, null, 2),
+        httpStatus: 502,
+        userAgent: req.headers.get('user-agent') || undefined,
+      }).catch(err => console.error('Failed to log error:', err));
+      
       return NextResponse.json({ error: "Model did not return function arguments" }, { status: 502 });
     }
 
@@ -111,6 +133,17 @@ export async function POST(req: NextRequest) {
     } catch (parseError) {
       console.error("JSON Parse Error:", parseError);
       console.error("Failed to parse:", toolCall.function.arguments);
+      
+      // Log error with full faulty LLM response
+      await logError({
+        error: parseError instanceof Error ? parseError : new Error(String(parseError)),
+        endpoint: '/api/grammario/analyze',
+        requestData: { sentence, languageHint, family },
+        fullLLMResponse: toolCall.function.arguments || JSON.stringify(resp, null, 2),
+        httpStatus: 502,
+        userAgent: req.headers.get('user-agent') || undefined,
+      }).catch(err => console.error('Failed to log error:', err));
+      
       return NextResponse.json({ 
         error: "Invalid JSON in model response", 
         details: parseError instanceof Error ? parseError.message : "Unknown parse error",
@@ -129,9 +162,29 @@ export async function POST(req: NextRequest) {
         .map((i) => `${(i.path && i.path.join(".")) || "(root)"}: ${i.message}`)
         .slice(0, 6)
         .join("; ");
+      
+      // Log validation error
+      await logError({
+        error: err,
+        endpoint: '/api/grammario/analyze',
+        requestData: { sentence, languageHint },
+        httpStatus: 422,
+        userAgent: req.headers.get('user-agent') || undefined,
+      }).catch(logErr => console.error('Failed to log error:', logErr));
+      
       return NextResponse.json({ error: summary }, { status: 422 });
     }
+    
     console.error(err);
+    
+    // Log general error
+    await logError({
+      error: err,
+      endpoint: '/api/grammario/analyze',
+      httpStatus: 500,
+      userAgent: req.headers.get('user-agent') || undefined,
+    }).catch(logErr => console.error('Failed to log error:', logErr));
+    
     return NextResponse.json({ error: err?.message || "Internal error" }, { status: 500 });
   }
 }

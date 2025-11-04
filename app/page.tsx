@@ -415,17 +415,6 @@ export default function Home() {
               onLanguageSelect={handleLanguageSelect}
               onDemoSentenceSelect={handleDemoSentenceSelect}
             />
-            {user && (
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={() => setShowProgressDashboard(true)}
-                title="Progress Dashboard"
-                className="dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
-                <TrendingUp className="h-4 w-4" />
-              </Button>
-            )}
           </div>
           {/* Sentence input form */}
           {showInput && (

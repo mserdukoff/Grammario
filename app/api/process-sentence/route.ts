@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { logError } from '@/lib/error-logger';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -66,6 +67,17 @@ Please break down the sentence as described.`;
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error('LLM raw output:', raw);
+      
+      // Log error with full LLM response
+      await logError({
+        error: new Error('No JSON found in LLM response'),
+        endpoint: '/api/process-sentence',
+        requestData: { sentence },
+        fullLLMResponse: raw,
+        httpStatus: 400,
+        userAgent: req.headers.get('user-agent') || undefined,
+      }).catch(err => console.error('Failed to log error:', err));
+      
       return NextResponse.json({ error: 'No JSON found in LLM response', raw: raw }, { status: 400 });
     }
 
@@ -111,10 +123,30 @@ Please break down the sentence as described.`;
       return NextResponse.json({ result: transformedResponse });
     } catch (err) {
       console.error('Error processing LLM response:', err);
+      
+      // Log error with full faulty LLM response
+      await logError({
+        error: err instanceof Error ? err : new Error(String(err)),
+        endpoint: '/api/process-sentence',
+        requestData: { sentence },
+        fullLLMResponse: raw,
+        httpStatus: 400,
+        userAgent: req.headers.get('user-agent') || undefined,
+      }).catch(logErr => console.error('Failed to log error:', logErr));
+      
       return NextResponse.json({ error: 'Invalid JSON from LLM', raw: raw }, { status: 400 });
     }
   } catch (error: any) {
     console.error('API error:', error);
+    
+    // Log error
+    await logError({
+      error: error,
+      endpoint: '/api/process-sentence',
+      httpStatus: 500,
+      userAgent: req.headers.get('user-agent') || undefined,
+    }).catch(logErr => console.error('Failed to log error:', logErr));
+    
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

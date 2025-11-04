@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { logError } from '@/lib/error-logger';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -93,6 +94,17 @@ Provide comprehensive vocabulary expansion data for this word.`;
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error('No JSON found in LLM response:', raw);
+      
+      // Log error with full LLM response
+      await logError({
+        error: new Error('No JSON found in LLM response'),
+        endpoint: '/api/vocabulary-expand',
+        requestData: { word, language, partOfSpeech, root },
+        fullLLMResponse: raw,
+        httpStatus: 500,
+        userAgent: req.headers.get('user-agent') || undefined,
+      }).catch(err => console.error('Failed to log error:', err));
+      
       return NextResponse.json({ error: 'Invalid response format', raw }, { status: 500 });
     }
 
@@ -101,11 +113,32 @@ Provide comprehensive vocabulary expansion data for this word.`;
       vocabularyData = JSON.parse(jsonMatch[0]);
     } catch (err) {
       console.error('JSON parse error:', err);
+      
+      // Log error with full faulty LLM response
+      await logError({
+        error: err instanceof Error ? err : new Error(String(err)),
+        endpoint: '/api/vocabulary-expand',
+        requestData: { word, language, partOfSpeech, root },
+        fullLLMResponse: raw,
+        httpStatus: 500,
+        userAgent: req.headers.get('user-agent') || undefined,
+      }).catch(logErr => console.error('Failed to log error:', logErr));
+      
       return NextResponse.json({ error: 'Invalid JSON response', raw }, { status: 500 });
     }
 
     // Validate required fields
     if (!vocabularyData.word || !vocabularyData.definition) {
+      // Log validation error with LLM response
+      await logError({
+        error: new Error('Incomplete vocabulary data'),
+        endpoint: '/api/vocabulary-expand',
+        requestData: { word, language, partOfSpeech, root },
+        fullLLMResponse: raw,
+        httpStatus: 500,
+        userAgent: req.headers.get('user-agent') || undefined,
+      }).catch(err => console.error('Failed to log error:', err));
+      
       return NextResponse.json({ error: 'Incomplete vocabulary data' }, { status: 500 });
     }
 
@@ -120,6 +153,15 @@ Provide comprehensive vocabulary expansion data for this word.`;
 
   } catch (error: any) {
     console.error('Vocabulary expansion API error:', error);
+    
+    // Log error
+    await logError({
+      error: error,
+      endpoint: '/api/vocabulary-expand',
+      httpStatus: 500,
+      userAgent: req.headers.get('user-agent') || undefined,
+    }).catch(logErr => console.error('Failed to log error:', logErr));
+    
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
