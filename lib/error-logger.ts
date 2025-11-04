@@ -41,7 +41,7 @@ export async function logError(error: {
       errorDetails: errorObj instanceof Error ? {
         name: errorObj.name,
         message: errorObj.message,
-        ...(errorObj.cause && { cause: errorObj.cause }),
+        ...(errorObj.cause !== undefined ? { cause: errorObj.cause } : {}),
       } : errorObj,
       stackTrace,
       endpoint: error.endpoint,

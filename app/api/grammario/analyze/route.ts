@@ -36,19 +36,23 @@ const SYSTEM = [
 ].join(" ");
 
 export async function POST(req: NextRequest) {
+  let sentence: string | undefined;
+  let languageHint: string | undefined;
+  let family: Family | undefined;
+  
   try {
     // Check API key first
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 });
     }
 
-    const { sentence, languageHint } = await req.json();
+    ({ sentence, languageHint } = await req.json());
     if (!sentence || typeof sentence !== "string") {
       return NextResponse.json({ error: "Missing 'sentence' string" }, { status: 400 });
     }
 
     // Detect language family and get appropriate tools/prompt
-    const family = detectFamily(languageHint);
+    family = detectFamily(languageHint);
     const tools = toolsForFamily(family);
     const systemPrompt = FAMILY_SYSTEM_PROMPT[family];
 

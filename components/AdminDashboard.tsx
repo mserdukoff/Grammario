@@ -274,8 +274,8 @@ export default function AdminDashboard() {
           if (userId) {
             userIds.add(userId)
             userDataMap.set(userId, {
-              id: doc.id,
-              ...data
+              ...data,
+              id: doc.id
             })
           }
         })
