@@ -16,9 +16,10 @@ interface SentenceInputProps {
   onCancel: () => void
   selectedLanguage: string
   onLanguageChange?: (language: string) => void
+  user?: { uid: string; displayName?: string | null; email?: string | null } | null
 }
 
-export default function SentenceInput({ onSubmit, onCancel, selectedLanguage, onLanguageChange }: SentenceInputProps) {
+export default function SentenceInput({ onSubmit, onCancel, selectedLanguage, onLanguageChange, user }: SentenceInputProps) {
   const [sentence, setSentence] = useState("")
   const [processedSentence, setProcessedSentence] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -41,7 +42,13 @@ export default function SentenceInput({ onSubmit, onCancel, selectedLanguage, on
 
     try {
       // Use the new robust analysis system
-      const analysis = await analyze(sentence, selectedLanguage)
+      const analysis = await analyze(sentence, {
+        languageHint: selectedLanguage,
+        userId: user?.uid,
+        userName: user?.displayName || undefined,
+        userEmail: user?.email || undefined,
+        location: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
+      })
       
       // Transform to the format expected by the UI
       const transformedData = transformAnalysisToLLMResponse(analysis)

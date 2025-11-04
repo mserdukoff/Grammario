@@ -1,0 +1,78 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == 'NFRmYOAhcgeulxcQQsBKutehfUh1';
+    }
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Sentences collection rules
+    match /sentences/{document} {
+      // Allow users to create their own sentences
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      
+      // Allow all authenticated users to read (for comprehensive dashboard)
+      allow read: if isAuthenticated();
+      
+      // Allow users to update/delete their own sentences
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Quizzes collection rules
+    match /quizzes/{document} {
+      // Allow users to create their own quizzes
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      
+      // Allow all authenticated users to read (for comprehensive dashboard)
+      allow read: if isAuthenticated();
+      
+      // Allow users to update/delete their own quizzes
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Test collection (for debugging)
+    match /test/{document} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      // Allow all authenticated users to read (for comprehensive dashboard)
+      allow read: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // User progress collection
+    match /user_progress/{userId} {
+      // Allow all authenticated users to read (for comprehensive dashboard)
+      allow read: if isAuthenticated();
+      // Allow users to write their own progress
+      allow write: if isAuthenticated() && userId == request.auth.uid;
+    }
+    
+    // Study sessions collection
+    match /study_sessions/{document} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      // Allow all authenticated users to read (for comprehensive dashboard)
+      allow read: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Achievement unlocks collection
+    match /achievement_unlocks/{document} {
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      // Allow all authenticated users to read (for comprehensive dashboard)
+      allow read: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Admin logs collection - only admin user can read/write
+    match /admin_logs/{document} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
+

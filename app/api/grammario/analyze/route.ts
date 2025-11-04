@@ -41,7 +41,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 });
     }
 
-    const { sentence, languageHint } = await req.json();
+    const { sentence, languageHint, userId, userName, userEmail, location } = await req.json();
+    
+    // Extract location from request if not provided
+    const requestLocation = location || req.nextUrl.pathname;
+    
+    // Get IP address and other request metadata
+    const ip = req.headers.get('x-forwarded-for') || 
+               req.headers.get('x-real-ip') || 
+               req.ip || 
+               'unknown';
+    const userAgent = req.headers.get('user-agent') || 'unknown';
+    const referer = req.headers.get('referer') || 'unknown';
     if (!sentence || typeof sentence !== "string") {
       return NextResponse.json({ error: "Missing 'sentence' string" }, { status: 400 });
     }
@@ -51,14 +62,33 @@ export async function POST(req: NextRequest) {
     const tools = toolsForFamily(family);
     const systemPrompt = FAMILY_SYSTEM_PROMPT[family];
 
-    console.log("Making OpenAI API call with:", {
-      model: "gpt-4o",
-      sentence,
-      languageHint,
-      family,
-      hasApiKey: !!process.env.OPENAI_API_KEY,
-      toolsLength: tools.length
-    });
+    // Enhanced logging for API call initiation
+    const requestLogData = {
+      timestamp: new Date().toISOString(),
+      location: {
+        apiRoute: req.nextUrl.pathname,
+        clientLocation: requestLocation,
+        ip: ip,
+        referer: referer,
+      },
+      user: {
+        userId: userId || 'anonymous',
+        userName: userName || 'unknown',
+        userEmail: userEmail || 'unknown',
+      },
+      request: {
+        model: "gpt-4o",
+        sentence,
+        languageHint,
+        family,
+        hasApiKey: !!process.env.OPENAI_API_KEY,
+        toolsLength: tools.length,
+      },
+    };
+    
+    console.log("=== Making OpenAI API Call ===");
+    console.log(JSON.stringify(requestLogData, null, 2));
+    console.log("==============================");
 
     let resp;
     try {
@@ -74,34 +104,120 @@ export async function POST(req: NextRequest) {
         tool_choice: { type: "function", function: { name: "analyze_sentence" } },
       });
     } catch (apiError) {
-      console.error("OpenAI API Error:", apiError);
+      const apiErrorLogData = {
+        timestamp: new Date().toISOString(),
+        location: {
+          apiRoute: req.nextUrl.pathname,
+          clientLocation: requestLocation,
+          ip: ip,
+        },
+        user: {
+          userId: userId || 'anonymous',
+          userName: userName || 'unknown',
+          userEmail: userEmail || 'unknown',
+        },
+        error: {
+          type: "OpenAI API Error",
+          message: apiError instanceof Error ? apiError.message : "Unknown API error",
+          error: apiError,
+        },
+      };
+      
+      console.error("=== OpenAI API Error ===");
+      console.error(JSON.stringify(apiErrorLogData, null, 2));
+      console.error("=======================");
       return NextResponse.json({ 
         error: "OpenAI API request failed", 
         details: apiError instanceof Error ? apiError.message : "Unknown API error"
       }, { status: 502 });
     }
 
-    console.log("OpenAI API response received:", {
-      hasChoices: !!resp.choices,
-      choicesLength: resp.choices?.length || 0,
-      usage: resp.usage
-    });
+    // Enhanced logging with user info, location, and full response details
+    const logData = {
+      timestamp: new Date().toISOString(),
+      location: {
+        apiRoute: req.nextUrl.pathname,
+        clientLocation: requestLocation,
+        ip: ip,
+        referer: referer,
+        userAgent: userAgent,
+      },
+      user: {
+        userId: userId || 'anonymous',
+        userName: userName || 'unknown',
+        userEmail: userEmail || 'unknown',
+      },
+      request: {
+        sentence: sentence,
+        languageHint: languageHint,
+        family: family,
+      },
+      response: {
+        fullResponse: resp,
+        hasChoices: !!resp.choices,
+        choicesLength: resp.choices?.length || 0,
+        usage: resp.usage,
+        model: resp.model,
+        id: resp.id,
+        created: resp.created,
+        object: resp.object,
+      },
+    };
+    
+    console.log("=== OpenAI API Response (Full Details) ===");
+    console.log(JSON.stringify(logData, null, 2));
+    console.log("==========================================");
 
     const toolCall = resp.choices[0]?.message?.tool_calls?.[0];
     if (!toolCall?.function?.arguments) {
-      console.error("OpenAI Response Debug:", {
-        choices: resp.choices?.length || 0,
-        message: resp.choices[0]?.message,
-        hasToolCalls: !!resp.choices[0]?.message?.tool_calls,
-        toolCallsLength: resp.choices[0]?.message?.tool_calls?.length || 0
-      });
+      const noToolCallLogData = {
+        timestamp: new Date().toISOString(),
+        location: {
+          apiRoute: req.nextUrl.pathname,
+          clientLocation: requestLocation,
+          ip: ip,
+        },
+        user: {
+          userId: userId || 'anonymous',
+          userName: userName || 'unknown',
+          userEmail: userEmail || 'unknown',
+        },
+        error: {
+          type: "No Tool Call Arguments",
+          choices: resp.choices?.length || 0,
+          message: resp.choices[0]?.message,
+          hasToolCalls: !!resp.choices[0]?.message?.tool_calls,
+          toolCallsLength: resp.choices[0]?.message?.tool_calls?.length || 0,
+        },
+      };
+      
+      console.error("=== OpenAI Response Debug (No Tool Call) ===");
+      console.error(JSON.stringify(noToolCallLogData, null, 2));
+      console.error("=============================================");
       return NextResponse.json({ error: "Model did not return function arguments" }, { status: 502 });
     }
 
-    // Debug: Log the raw function arguments before parsing
-    console.log("Raw function arguments:", toolCall.function.arguments);
-    console.log("Arguments type:", typeof toolCall.function.arguments);
-    console.log("Arguments length:", toolCall.function.arguments?.length || 0);
+    // Debug: Log the raw function arguments before parsing with context
+    const debugLogData = {
+      timestamp: new Date().toISOString(),
+      location: {
+        apiRoute: req.nextUrl.pathname,
+        clientLocation: requestLocation,
+      },
+      user: {
+        userId: userId || 'anonymous',
+        userName: userName || 'unknown',
+      },
+      debug: {
+        rawFunctionArguments: toolCall.function.arguments,
+        argumentsType: typeof toolCall.function.arguments,
+        argumentsLength: toolCall.function.arguments?.length || 0,
+      },
+    };
+    
+    console.log("=== Raw Function Arguments Debug ===");
+    console.log(JSON.stringify(debugLogData, null, 2));
+    console.log("====================================");
 
     // 1) Parse JSON, 2) Family-specific Zod-validate, 3) Sanity checks, 4) Clean nulls
     let raw;
@@ -109,8 +225,28 @@ export async function POST(req: NextRequest) {
       raw = JSON.parse(toolCall.function.arguments);
 
     } catch (parseError) {
-      console.error("JSON Parse Error:", parseError);
-      console.error("Failed to parse:", toolCall.function.arguments);
+      const errorLogData = {
+        timestamp: new Date().toISOString(),
+        location: {
+          apiRoute: req.nextUrl.pathname,
+          clientLocation: requestLocation,
+          ip: ip,
+        },
+        user: {
+          userId: userId || 'anonymous',
+          userName: userName || 'unknown',
+          userEmail: userEmail || 'unknown',
+        },
+        error: {
+          type: "JSON Parse Error",
+          message: parseError instanceof Error ? parseError.message : "Unknown parse error",
+          failedToParse: toolCall.function.arguments,
+        },
+      };
+      
+      console.error("=== JSON Parse Error ===");
+      console.error(JSON.stringify(errorLogData, null, 2));
+      console.error("========================");
       return NextResponse.json({ 
         error: "Invalid JSON in model response", 
         details: parseError instanceof Error ? parseError.message : "Unknown parse error",

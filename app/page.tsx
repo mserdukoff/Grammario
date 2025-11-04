@@ -161,12 +161,18 @@ export default function Home() {
       timestamp: Timestamp.now(),
       analysisMetadata: analysisMetadata ? sanitizeForFirebase(analysisMetadata) : null,
     }
+    
+    // Add userEmail to the document for Firebase
+    const sentenceData = {
+      ...newSentence,
+      userEmail: user?.email || null
+    }
 
     setCurrentSentence(newSentence)
 
     if (user && progressTracker) {
       try {
-        const docRef = await addDoc(collection(db, "sentences"), newSentence)
+        const docRef = await addDoc(collection(db, "sentences"), sentenceData)
         fetchSentences(user.uid)
         
         // Track progress and check for achievements
@@ -205,6 +211,12 @@ export default function Home() {
       llmResponse: formattedResponse,
       timestamp: Timestamp.now(),
     }
+    
+    // Add userEmail to the document for Firebase (for demo sentences)
+    const sentenceData = {
+      ...newSentence,
+      userEmail: user?.email || null
+    }
 
     // Clear selected sentence and set current sentence
     setSelectedSentence(null)
@@ -238,6 +250,7 @@ export default function Home() {
         // Create a properly formatted quiz result for Firebase
         const quizData = {
           userId: user.uid,
+          userEmail: user.email || null,
           sentenceId: result.sentenceId,
           sentenceText: result.sentenceId ? 
             sentences.find(s => s.id === result.sentenceId)?.sentence || 
@@ -436,6 +449,7 @@ export default function Home() {
                   onCancel={() => setShowInput(false)}
                   selectedLanguage={selectedLanguage}
                   onLanguageChange={setSelectedLanguage}
+                  user={user}
                 />
               </div>
             </div>
