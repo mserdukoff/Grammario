@@ -17,23 +17,25 @@ import {
 } from "@/lib/grammario-groups";
 import { logError, logAdminCall } from "@/lib/error-logger";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Configure OpenAI client with timeout to prevent function timeouts
+// Set to 50 seconds to leave buffer for function execution overhead
+const OPENAI_TIMEOUT_MS = 50000; // 50 seconds
 
-const SYSTEM = [
-  "You are Grammario, a multilingual grammar & morphology analyst and teacher.",
-  "Return ONLY JSON via the provided function schema (no prose).",
-  "Prefer UPOS; include xpos when helpful.",
-  "Morphology must be sparse; omit absent/null keys entirely.",
-  "CRITICAL: For each word, provide morphological_components that break down the word into its constituent parts (root/stem + affixes).",
-  "For agglutinative languages (Turkish, Finnish, etc.), always decompose complex words into their morphemes.",
-  "Example: Turkish 'köyde' → [{type:'root', form:'köy', meaning:'village'}, {type:'suffix', form:'de', function:'locative'}]",
-  "For inflected words in any language, show the decomposition (e.g., 'running' → 'run' + 'ing').",
-  "If mistakes exist: keep original_sentence intact; set normalized to the correction and add errors[].",
-  "Add 1–3 teaching_notes (CEFR A2–B1) explaining morphological processes when relevant.",
-  "Syntax: UD-like dependencies; 1-based heads (1..n) or 0 for root tokens with no head.",
-  "If uncertain, output minimal analysis (text + lemma + upos).",
-  "No over-correction: if acceptable, normalized == original_sentence and errors == [].",
-].join(" ");
+// Model selection: defaults to gpt-4o (best available model)
+// Can be overridden via OPENAI_MODEL env var (e.g., "gpt-4o-mini" for faster responses)
+const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o";
+
+const client = new OpenAI({ 
+  apiKey: process.env.OPENAI_API_KEY,
+  timeout: OPENAI_TIMEOUT_MS,
+  maxRetries: 1, // Retry once for transient failures
+});
+
+// Configure route timeout for Next.js (if supported by deployment platform)
+// This helps prevent FUNCTION_INVOCATION_TIMEOUT errors
+// Note: This is only effective on platforms that support it (Vercel, etc.)
+export const maxDuration = 60; // 60 seconds - maximum for most platforms
+export const dynamic = 'force-dynamic'; // Ensure dynamic rendering
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
@@ -98,8 +100,9 @@ export async function POST(req: NextRequest) {
       family: family,
     };
 
+    const model = DEFAULT_MODEL;
     console.log("Making OpenAI API call with:", {
-      model: "gpt-4o",
+      model,
       sentence,
       languageHint,
       family,
@@ -109,22 +112,47 @@ export async function POST(req: NextRequest) {
 
     let resp;
     try {
-      resp = await client.chat.completions.create({
-        model: "gpt-4o",
-        temperature: 0.1,
-        messages: [
-          { role: "system" as const, content: systemPrompt },
-          ...(languageHint ? [{ role: "user" as const, content: `language hint: ${languageHint}` }] : []),
-          { role: "user" as const, content: sentence },
-        ],
-        tools: tools as any, // Cast to avoid readonly issues
-        tool_choice: { type: "function", function: { name: "analyze_sentence" } },
+      // Create a timeout promise that rejects after OPENAI_TIMEOUT_MS
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error(`Request timeout after ${OPENAI_TIMEOUT_MS}ms`));
+        }, OPENAI_TIMEOUT_MS);
       });
+
+      // Race between the OpenAI API call and the timeout
+      resp = await Promise.race([
+        client.chat.completions.create({
+          model,
+          temperature: 0.1,
+          max_tokens: 4000, // Limit response size to speed up generation
+          messages: [
+            { role: "system" as const, content: systemPrompt },
+            ...(languageHint ? [{ role: "user" as const, content: `language hint: ${languageHint}` }] : []),
+            { role: "user" as const, content: sentence },
+          ],
+          tools: tools as any, // Cast to avoid readonly issues
+          tool_choice: { type: "function", function: { name: "analyze_sentence" } },
+        }),
+        timeoutPromise,
+      ]);
       rawLLMOutput = resp;
-    } catch (apiError) {
+    } catch (apiError: any) {
       console.error("OpenAI API Error:", apiError);
       const duration = Date.now() - startTime;
       rawLLMOutput = apiError;
+      
+      // Check if this is a timeout error
+      const isTimeout = apiError?.message?.includes('timeout') || 
+                       apiError?.code === 'ETIMEDOUT' ||
+                       apiError?.code === 'ECONNABORTED' ||
+                       apiError?.name === 'AbortError' ||
+                       apiError?.message?.includes('TIMEOUT');
+      
+      const errorMessage = isTimeout 
+        ? "The analysis request timed out. The sentence may be too complex or the service is experiencing high load. Please try again with a shorter sentence."
+        : "OpenAI API request failed";
+      
+      const statusCode = isTimeout ? 504 : 502;
       
       // Log to admin_logs
       await logAdminCall({
@@ -134,7 +162,7 @@ export async function POST(req: NextRequest) {
         userAgent: req.headers.get('user-agent') || undefined,
         rawInput: rawInput,
         rawLLMOutput: rawLLMOutput,
-        statusCode: 502,
+        statusCode,
         duration,
         error: apiError instanceof Error ? apiError : { message: String(apiError) },
       }).catch(() => {});
@@ -144,14 +172,15 @@ export async function POST(req: NextRequest) {
         error: apiError,
         endpoint: '/api/grammario/analyze',
         requestData: { sentence, languageHint, family },
-        httpStatus: 502,
+        httpStatus: statusCode,
         userAgent: req.headers.get('user-agent') || undefined,
       }).catch(err => console.error('Failed to log error:', err));
       
       return NextResponse.json({ 
-        error: "OpenAI API request failed", 
-        details: apiError instanceof Error ? apiError.message : "Unknown API error"
-      }, { status: 502 });
+        error: errorMessage, 
+        details: apiError instanceof Error ? apiError.message : "Unknown API error",
+        isTimeout,
+      }, { status: statusCode });
     }
 
     console.log("OpenAI API response received:", {

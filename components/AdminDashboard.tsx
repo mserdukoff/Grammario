@@ -6,6 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { 
   Database, 
   AlertTriangle, 
@@ -20,9 +30,14 @@ import {
   BookOpen,
   Search,
   User as UserIcon,
-  Home
+  Home,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  CheckSquare,
+  Square
 } from 'lucide-react'
-import { collection, getDocs, query, orderBy, limit, where, Timestamp } from 'firebase/firestore'
+import { collection, getDocs, query, orderBy, limit, where, Timestamp, deleteDoc, doc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useRouter } from 'next/navigation'
 
@@ -99,6 +114,17 @@ export default function AdminDashboard() {
   const [userDetail, setUserDetail] = useState<UserDetail | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [adminLogs, setAdminLogs] = useState<AdminLog[]>([])
+  const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set())
+  const [selectedLogs, setSelectedLogs] = useState<Set<string>>(new Set())
+  const [expandedSentences, setExpandedSentences] = useState<Set<string>>(new Set())
+  const [selectedSentences, setSelectedSentences] = useState<Set<string>>(new Set())
+  const [expandedQuizzes, setExpandedQuizzes] = useState<Set<string>>(new Set())
+  const [selectedQuizzes, setSelectedQuizzes] = useState<Set<string>>(new Set())
+  const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set())
+  const [selectedErrors, setSelectedErrors] = useState<Set<string>>(new Set())
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set())
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [itemsToDelete, setItemsToDelete] = useState<{ids: string[], collection: string, label: string}>({ids: [], collection: '', label: ''})
 
   useEffect(() => {
     loadDashboardData()
@@ -167,6 +193,180 @@ export default function AdminDashboard() {
         }
       }
     }
+  }
+
+  const toggleLogExpansion = (logId: string) => {
+    setExpandedLogs(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(logId)) {
+        newSet.delete(logId)
+      } else {
+        newSet.add(logId)
+      }
+      return newSet
+    })
+  }
+
+  const toggleLogSelection = (logId: string) => {
+    setSelectedLogs(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(logId)) {
+        newSet.delete(logId)
+      } else {
+        newSet.add(logId)
+      }
+      return newSet
+    })
+  }
+
+  const selectAllLogs = () => {
+    if (selectedLogs.size === adminLogs.length) {
+      setSelectedLogs(new Set())
+    } else {
+      setSelectedLogs(new Set(adminLogs.map(log => log.id)))
+    }
+  }
+
+  const selectAllSentences = () => {
+    if (selectedSentences.size === recentSentences.length) {
+      setSelectedSentences(new Set())
+    } else {
+      setSelectedSentences(new Set(recentSentences.map(s => s.id)))
+    }
+  }
+
+  const selectAllQuizzes = () => {
+    if (selectedQuizzes.size === recentQuizzes.length) {
+      setSelectedQuizzes(new Set())
+    } else {
+      setSelectedQuizzes(new Set(recentQuizzes.map(q => q.id)))
+    }
+  }
+
+  const selectAllErrors = () => {
+    if (selectedErrors.size === errorLogs.length) {
+      setSelectedErrors(new Set())
+    } else {
+      setSelectedErrors(new Set(errorLogs.map(e => e.id)))
+    }
+  }
+
+  const selectAllUsers = () => {
+    if (selectedUsers.size === filteredUsers.length) {
+      setSelectedUsers(new Set())
+    } else {
+      setSelectedUsers(new Set(filteredUsers.map(u => u.id)))
+    }
+  }
+
+  const handleDeleteClick = (ids: string[], collection: string, label: string) => {
+    setItemsToDelete({ids, collection, label})
+    setShowDeleteDialog(true)
+  }
+
+  const confirmDelete = async () => {
+    try {
+      const {ids, collection} = itemsToDelete
+      // Delete all selected items
+      const deletePromises = ids.map(id => 
+        deleteDoc(doc(db, collection, id))
+      )
+      await Promise.all(deletePromises)
+      
+      // Remove from local state based on collection type
+      switch(collection) {
+        case 'admin_logs':
+          setAdminLogs(adminLogs.filter(log => !ids.includes(log.id)))
+          setSelectedLogs(prev => {
+            const newSet = new Set(prev)
+            ids.forEach(id => newSet.delete(id))
+            return newSet
+          })
+          setExpandedLogs(prev => {
+            const newSet = new Set(prev)
+            ids.forEach(id => newSet.delete(id))
+            return newSet
+          })
+          break
+        case 'sentences':
+          setRecentSentences(recentSentences.filter(s => !ids.includes(s.id)))
+          setSelectedSentences(prev => {
+            const newSet = new Set(prev)
+            ids.forEach(id => newSet.delete(id))
+            return newSet
+          })
+          setExpandedSentences(prev => {
+            const newSet = new Set(prev)
+            ids.forEach(id => newSet.delete(id))
+            return newSet
+          })
+          break
+        case 'quizzes':
+          setRecentQuizzes(recentQuizzes.filter(q => !ids.includes(q.id)))
+          setSelectedQuizzes(prev => {
+            const newSet = new Set(prev)
+            ids.forEach(id => newSet.delete(id))
+            return newSet
+          })
+          setExpandedQuizzes(prev => {
+            const newSet = new Set(prev)
+            ids.forEach(id => newSet.delete(id))
+            return newSet
+          })
+          break
+        case 'error_logs':
+          setErrorLogs(errorLogs.filter(e => !ids.includes(e.id)))
+          setRecentErrors(recentErrors.filter(e => !ids.includes(e.id)))
+          setSelectedErrors(prev => {
+            const newSet = new Set(prev)
+            ids.forEach(id => newSet.delete(id))
+            return newSet
+          })
+          setExpandedErrors(prev => {
+            const newSet = new Set(prev)
+            ids.forEach(id => newSet.delete(id))
+            return newSet
+          })
+          break
+        case 'user_progress':
+          setAllUsers(allUsers.filter(u => !ids.includes(u.id)))
+          setSelectedUsers(prev => {
+            const newSet = new Set(prev)
+            ids.forEach(id => newSet.delete(id))
+            return newSet
+          })
+          break
+      }
+      
+      // Reload collection stats to update counts
+      await loadCollectionStats()
+      // Close dialog
+      setShowDeleteDialog(false)
+      setItemsToDelete({ids: [], collection: '', label: ''})
+    } catch (error) {
+      console.error('Error deleting items:', error)
+      alert('Failed to delete items. Please try again.')
+    }
+  }
+
+  const deleteAdminLog = (logId: string) => {
+    handleDeleteClick([logId], 'admin_logs', 'API call log')
+  }
+
+  const deleteSentence = (sentenceId: string) => {
+    handleDeleteClick([sentenceId], 'sentences', 'sentence')
+  }
+
+  const deleteQuiz = (quizId: string) => {
+    handleDeleteClick([quizId], 'quizzes', 'quiz')
+  }
+
+  const deleteError = (errorId: string) => {
+    handleDeleteClick([errorId], 'error_logs', 'error log')
+  }
+
+  const deleteUser = (userId: string) => {
+    handleDeleteClick([userId], 'user_progress', 'user')
   }
 
   const loadCollectionStats = async () => {
@@ -817,41 +1017,83 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Database className="h-8 w-8" />
+    <>
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {itemsToDelete.label}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {itemsToDelete.ids.length} {itemsToDelete.label}{itemsToDelete.ids.length > 1 ? 's' : ''}? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="h-full overflow-y-auto p-4 md:p-6">
+        <div className="max-w-7xl mx-auto space-y-4 md:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-2">
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+            <Database className="h-6 w-6 md:h-8 md:w-8" />
             Admin Dashboard
           </h1>
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
+              size="sm"
               onClick={() => router.push('/')}
               title="Back to Grammario"
+              className="text-xs md:text-sm"
             >
-              <Home className="h-4 w-4 mr-2" />
-              Back to App
+              <Home className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+              <span className="hidden sm:inline">Back to App</span>
+              <span className="sm:hidden">Back</span>
             </Button>
-            <Button variant="outline" size="icon" onClick={loadDashboardData} title="Refresh Dashboard">
-              <RefreshCw className="h-4 w-4" />
+            <Button variant="outline" size="icon" onClick={loadDashboardData} title="Refresh Dashboard" className="h-8 w-8 md:h-10 md:w-10">
+              <RefreshCw className="h-3 w-3 md:h-4 md:w-4" />
             </Button>
           </div>
         </div>
 
         <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-          <TabsList className="grid w-full grid-cols-7">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="logs">Recent Calls</TabsTrigger>
-            <TabsTrigger value="errors">Errors</TabsTrigger>
-            <TabsTrigger value="sentences">Sentences</TabsTrigger>
-            <TabsTrigger value="quizzes">Quizzes</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-7 h-auto md:h-10 flex-nowrap gap-0 md:gap-1">
+              <TabsTrigger value="overview" className="text-xs md:text-sm px-3 md:px-3 whitespace-nowrap flex-shrink-0">
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="logs" className="text-xs md:text-sm px-3 md:px-3 whitespace-nowrap flex-shrink-0">
+                <span className="hidden sm:inline">Recent Calls</span>
+                <span className="sm:hidden">Calls</span>
+              </TabsTrigger>
+              <TabsTrigger value="errors" className="text-xs md:text-sm px-3 md:px-3 whitespace-nowrap flex-shrink-0">
+                Errors
+              </TabsTrigger>
+              <TabsTrigger value="sentences" className="text-xs md:text-sm px-3 md:px-3 whitespace-nowrap flex-shrink-0">
+                Sentences
+              </TabsTrigger>
+              <TabsTrigger value="quizzes" className="text-xs md:text-sm px-3 md:px-3 whitespace-nowrap flex-shrink-0">
+                Quizzes
+              </TabsTrigger>
+              <TabsTrigger value="users" className="text-xs md:text-sm px-3 md:px-3 whitespace-nowrap flex-shrink-0">
+                Users
+              </TabsTrigger>
+              <TabsTrigger value="activity" className="text-xs md:text-sm px-3 md:px-3 whitespace-nowrap flex-shrink-0">
+                Activity
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-            <TabsContent value="overview" className="space-y-6 mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <TabsContent value="overview" className="space-y-4 md:space-y-6 mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                 {collectionStats.map((stat) => (
                   <Card key={stat.name}>
                     <CardHeader className="pb-3">
@@ -888,33 +1130,90 @@ export default function AdminDashboard() {
                     {adminLogs.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No recent calls logged</p>
                     ) : (
-                      adminLogs.slice(0, 5).map((log) => (
-                        <div key={log.id} className="border-l-4 border-blue-500 pl-4 py-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                {log.method && (
-                                  <Badge variant="outline" className="text-xs">{log.method}</Badge>
+                      adminLogs.slice(0, 5).map((log) => {
+                        const isExpanded = expandedLogs.has(log.id)
+                        return (
+                          <div key={log.id} className="border-l-4 border-blue-500 pl-4 py-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div 
+                                className="flex-1 cursor-pointer"
+                                onClick={() => toggleLogExpansion(log.id)}
+                              >
+                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                  {log.method && (
+                                    <Badge variant="outline" className="text-xs">{log.method}</Badge>
+                                  )}
+                                  {log.endpoint && (
+                                    <span className="text-sm font-medium">{log.endpoint}</span>
+                                  )}
+                                  {log.statusCode && (
+                                    <Badge variant={log.statusCode >= 400 ? "destructive" : "default"} className="text-xs">
+                                      {log.statusCode}
+                                    </Badge>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      toggleLogExpansion(log.id)
+                                    }}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-3 w-3" />
+                                    ) : (
+                                      <ChevronDown className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </div>
+                                {log.userId && (
+                                  <p className="text-xs text-muted-foreground">User: {log.userId}</p>
                                 )}
-                                {log.endpoint && (
-                                  <span className="text-sm font-medium">{log.endpoint}</span>
-                                )}
-                                {log.statusCode && (
-                                  <Badge variant={log.statusCode >= 400 ? "destructive" : "default"} className="text-xs">
-                                    {log.statusCode}
-                                  </Badge>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {formatTimestamp(log.timestamp || log.createdAt)}
+                                </p>
+                                {isExpanded && (
+                                  <div className="mt-2 space-y-2 text-xs">
+                                    {log.requestData && (
+                                      <div>
+                                        <p className="font-medium mb-1">Request:</p>
+                                        <pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
+                                          {typeof log.requestData === 'string' 
+                                            ? log.requestData 
+                                            : JSON.stringify(log.requestData, null, 2)}
+                                        </pre>
+                                      </div>
+                                    )}
+                                        {log.responseData && (
+                                      <div>
+                                        <p className="font-medium mb-1">Response:</p>
+                                        <pre className="bg-muted p-2 rounded overflow-x-auto max-h-32">
+                                          {typeof log.responseData === 'string' 
+                                            ? log.responseData 
+                                            : JSON.stringify(log.responseData, null, 2)}
+                                        </pre>
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                              {log.userId && (
-                                <p className="text-xs text-muted-foreground">User: {log.userId}</p>
-                              )}
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {formatTimestamp(log.timestamp || log.createdAt)}
-                              </p>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deleteAdminLog(log.id)
+                                }}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10 h-6 w-6"
+                                title="Delete this log"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
                             </div>
                           </div>
-                        </div>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 </CardContent>
@@ -957,214 +1256,646 @@ export default function AdminDashboard() {
             </TabsContent>
 
             <TabsContent value="logs" className="space-y-4 mt-4">
+              {adminLogs.length > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllLogs}
+                      className="flex items-center gap-2 text-xs md:text-sm"
+                    >
+                      {selectedLogs.size === adminLogs.length ? (
+                        <CheckSquare className="h-3 w-3 md:h-4 md:w-4" />
+                      ) : (
+                        <Square className="h-3 w-3 md:h-4 md:w-4" />
+                      )}
+                      <span className="hidden sm:inline">{selectedLogs.size === adminLogs.length ? 'Deselect All' : 'Select All'}</span>
+                      <span className="sm:hidden">{selectedLogs.size === adminLogs.length ? 'Deselect' : 'Select'}</span>
+                    </Button>
+                    {selectedLogs.size > 0 && (
+                      <span className="text-xs md:text-sm text-muted-foreground">
+                        {selectedLogs.size} selected
+                      </span>
+                    )}
+                  </div>
+                  {selectedLogs.size > 0 && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteClick(Array.from(selectedLogs), 'admin_logs', 'API call log')}
+                      className="flex items-center gap-2 text-xs md:text-sm"
+                    >
+                      <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+                      <span className="hidden sm:inline">Delete Selected ({selectedLogs.size})</span>
+                      <span className="sm:hidden">Delete ({selectedLogs.size})</span>
+                    </Button>
+                  )}
+                </div>
+              )}
               <div className="space-y-4">
                 {adminLogs.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No admin logs found</p>
                 ) : (
-                  adminLogs.map((log) => (
-                    <Card key={log.id} className="border-l-4 border-blue-500">
-                      <CardHeader>
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2 flex-wrap">
-                              {log.method && (
-                                <Badge variant="outline">{log.method}</Badge>
-                              )}
-                              {log.endpoint && (
-                                <Badge variant="outline">{log.endpoint}</Badge>
-                              )}
-                              {log.statusCode && (
-                                <Badge variant={log.statusCode >= 400 ? "destructive" : log.statusCode >= 300 ? "secondary" : "default"}>
-                                  {log.statusCode}
-                                </Badge>
-                              )}
-                              {log.duration && (
-                                <Badge variant="outline">{log.duration}ms</Badge>
-                              )}
+                  adminLogs.map((log) => {
+                    const isExpanded = expandedLogs.has(log.id)
+                    const isSelected = selectedLogs.has(log.id)
+                    return (
+                      <Card key={log.id} className="border-l-4 border-blue-500">
+                        <CardHeader>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => toggleLogSelection(log.id)}
+                                className="h-6 w-6 mt-1"
+                                title={isSelected ? "Deselect" : "Select"}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <Square className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <div 
+                                className="flex-1 cursor-pointer"
+                                onClick={() => toggleLogExpansion(log.id)}
+                              >
+                                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                  {log.method && (
+                                    <Badge variant="outline">{log.method}</Badge>
+                                  )}
+                                  {log.endpoint && (
+                                    <Badge variant="outline">{log.endpoint}</Badge>
+                                  )}
+                                  {log.statusCode && (
+                                    <Badge variant={log.statusCode >= 400 ? "destructive" : log.statusCode >= 300 ? "secondary" : "default"}>
+                                      {log.statusCode}
+                                    </Badge>
+                                  )}
+                                  {log.duration && (
+                                    <Badge variant="outline">{log.duration}ms</Badge>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      toggleLogExpansion(log.id)
+                                    }}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </div>
+                                {log.userId && (
+                                  <p className="text-sm text-muted-foreground mb-1">User ID: {log.userId}</p>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                  {formatTimestamp(log.timestamp || log.createdAt)}
+                                </p>
+                              </div>
                             </div>
-                            {log.userId && (
-                              <p className="text-sm text-muted-foreground mb-1">User ID: {log.userId}</p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteAdminLog(log.id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              title="Delete this log"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        {isExpanded && (
+                          <CardContent className="space-y-4">
+                            {log.requestData && (
+                              <div>
+                                <p className="text-sm font-medium mb-2">Request Data:</p>
+                                <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-48">
+                                  {typeof log.requestData === 'string' 
+                                    ? log.requestData 
+                                    : JSON.stringify(log.requestData, null, 2)}
+                                </pre>
+                              </div>
                             )}
-                            <p className="text-xs text-muted-foreground">
-                              {formatTimestamp(log.timestamp || log.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {log.requestData && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Request Data:</p>
-                            <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-48">
-                              {typeof log.requestData === 'string' 
-                                ? log.requestData 
-                                : JSON.stringify(log.requestData, null, 2)}
-                            </pre>
-                          </div>
+                            {log.responseData && (
+                              <div>
+                                <p className="text-sm font-medium mb-2">Response Data:</p>
+                                <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-48">
+                                  {typeof log.responseData === 'string' 
+                                    ? log.responseData 
+                                    : JSON.stringify(log.responseData, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            {log.userAgent && (
+                              <p className="text-xs text-muted-foreground">User Agent: {log.userAgent}</p>
+                            )}
+                            {/* Show any other fields that might exist */}
+                            {Object.keys(log).filter(key => 
+                              !['id', 'timestamp', 'createdAt', 'endpoint', 'method', 'userId', 'userAgent', 'requestData', 'responseData', 'statusCode', 'duration'].includes(key)
+                            ).length > 0 && (
+                              <div>
+                                <p className="text-sm font-medium mb-2">Additional Data:</p>
+                                <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+                                  {JSON.stringify(
+                                    Object.fromEntries(
+                                      Object.entries(log).filter(([key]) => 
+                                        !['id', 'timestamp', 'createdAt', 'endpoint', 'method', 'userId', 'userAgent', 'requestData', 'responseData', 'statusCode', 'duration'].includes(key)
+                                      )
+                                    ),
+                                    null,
+                                    2
+                                  )}
+                                </pre>
+                              </div>
+                            )}
+                          </CardContent>
                         )}
-                        {log.responseData && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Response Data:</p>
-                            <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-48">
-                              {typeof log.responseData === 'string' 
-                                ? log.responseData 
-                                : JSON.stringify(log.responseData, null, 2)}
-                            </pre>
-                          </div>
-                        )}
-                        {log.userAgent && (
-                          <p className="text-xs text-muted-foreground">User Agent: {log.userAgent}</p>
-                        )}
-                        {/* Show any other fields that might exist */}
-                        {Object.keys(log).filter(key => 
-                          !['id', 'timestamp', 'createdAt', 'endpoint', 'method', 'userId', 'userAgent', 'requestData', 'responseData', 'statusCode', 'duration'].includes(key)
-                        ).length > 0 && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Additional Data:</p>
-                            <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
-                              {JSON.stringify(
-                                Object.fromEntries(
-                                  Object.entries(log).filter(([key]) => 
-                                    !['id', 'timestamp', 'createdAt', 'endpoint', 'method', 'userId', 'userAgent', 'requestData', 'responseData', 'statusCode', 'duration'].includes(key)
-                                  )
-                                ),
-                                null,
-                                2
-                              )}
-                            </pre>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))
+                      </Card>
+                    )
+                  })
                 )}
               </div>
             </TabsContent>
 
             <TabsContent value="errors" className="space-y-4 mt-4">
+              {errorLogs.length > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllErrors}
+                      className="flex items-center gap-2 text-xs md:text-sm"
+                    >
+                      {selectedErrors.size === errorLogs.length ? (
+                        <CheckSquare className="h-3 w-3 md:h-4 md:w-4" />
+                      ) : (
+                        <Square className="h-3 w-3 md:h-4 md:w-4" />
+                      )}
+                      <span className="hidden sm:inline">{selectedErrors.size === errorLogs.length ? 'Deselect All' : 'Select All'}</span>
+                      <span className="sm:hidden">{selectedErrors.size === errorLogs.length ? 'Deselect' : 'Select'}</span>
+                    </Button>
+                    {selectedErrors.size > 0 && (
+                      <span className="text-xs md:text-sm text-muted-foreground">
+                        {selectedErrors.size} selected
+                      </span>
+                    )}
+                  </div>
+                  {selectedErrors.size > 0 && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteClick(Array.from(selectedErrors), 'error_logs', 'error log')}
+                      className="flex items-center gap-2 text-xs md:text-sm"
+                    >
+                      <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+                      <span className="hidden sm:inline">Delete Selected ({selectedErrors.size})</span>
+                      <span className="sm:hidden">Delete ({selectedErrors.size})</span>
+                    </Button>
+                  )}
+                </div>
+              )}
               <div className="space-y-4">
                 {errorLogs.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No errors logged</p>
                 ) : (
-                  errorLogs.map((error) => (
-                    <Card key={error.id} className="border-l-4 border-red-500">
-                      <CardHeader>
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant={getErrorSeverity(error)}>
-                                {error.errorType}
-                              </Badge>
-                              {error.httpStatus && (
-                                <Badge variant="outline">HTTP {error.httpStatus}</Badge>
-                              )}
-                              {error.endpoint && (
-                                <Badge variant="outline">{error.endpoint}</Badge>
-                              )}
+                  errorLogs.map((error) => {
+                    const isExpanded = expandedErrors.has(error.id)
+                    const isSelected = selectedErrors.has(error.id)
+                    return (
+                      <Card key={error.id} className="border-l-4 border-red-500">
+                        <CardHeader>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  const newSet = new Set(selectedErrors)
+                                  if (newSet.has(error.id)) {
+                                    newSet.delete(error.id)
+                                  } else {
+                                    newSet.add(error.id)
+                                  }
+                                  setSelectedErrors(newSet)
+                                }}
+                                className="h-6 w-6 mt-1"
+                                title={isSelected ? "Deselect" : "Select"}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <Square className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <div 
+                                className="flex-1 cursor-pointer"
+                                onClick={() => {
+                                  const newSet = new Set(expandedErrors)
+                                  if (newSet.has(error.id)) {
+                                    newSet.delete(error.id)
+                                  } else {
+                                    newSet.add(error.id)
+                                  }
+                                  setExpandedErrors(newSet)
+                                }}
+                              >
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant={getErrorSeverity(error)}>
+                                    {error.errorType}
+                                  </Badge>
+                                  {error.httpStatus && (
+                                    <Badge variant="outline">HTTP {error.httpStatus}</Badge>
+                                  )}
+                                  {error.endpoint && (
+                                    <Badge variant="outline">{error.endpoint}</Badge>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const newSet = new Set(expandedErrors)
+                                      if (newSet.has(error.id)) {
+                                        newSet.delete(error.id)
+                                      } else {
+                                        newSet.add(error.id)
+                                      }
+                                      setExpandedErrors(newSet)
+                                    }}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </div>
+                                <CardTitle className="text-base">{error.errorMessage}</CardTitle>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {formatTimestamp(error.timestamp)}
+                                </p>
+                              </div>
                             </div>
-                            <CardTitle className="text-base">{error.errorMessage}</CardTitle>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {formatTimestamp(error.timestamp)}
-                            </p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteError(error.id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              title="Delete this error"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {error.errorDetails && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Error Details:</p>
-                            <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
-                              {JSON.stringify(error.errorDetails, null, 2)}
-                            </pre>
-                          </div>
+                        </CardHeader>
+                        {isExpanded && (
+                          <CardContent className="space-y-4">
+                            {error.errorDetails && (
+                              <div>
+                                <p className="text-sm font-medium mb-2">Error Details:</p>
+                                <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+                                  {JSON.stringify(error.errorDetails, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            {error.stackTrace && (
+                              <div>
+                                <p className="text-sm font-medium mb-2">Stack Trace:</p>
+                                <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+                                  {error.stackTrace}
+                                </pre>
+                              </div>
+                            )}
+                            {error.requestData && (
+                              <div>
+                                <p className="text-sm font-medium mb-2">Request Data:</p>
+                                <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+                                  {JSON.stringify(error.requestData, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            {error.fullLLMResponse && (
+                              <div>
+                                <p className="text-sm font-medium mb-2">Full LLM Response:</p>
+                                <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-96">
+                                  {error.fullLLMResponse}
+                                </pre>
+                              </div>
+                            )}
+                            {error.userId && (
+                              <p className="text-xs text-muted-foreground">User ID: {error.userId}</p>
+                            )}
+                            {error.userAgent && (
+                              <p className="text-xs text-muted-foreground">User Agent: {error.userAgent}</p>
+                            )}
+                          </CardContent>
                         )}
-                        {error.stackTrace && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Stack Trace:</p>
-                            <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
-                              {error.stackTrace}
-                            </pre>
-                          </div>
-                        )}
-                        {error.requestData && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Request Data:</p>
-                            <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
-                              {JSON.stringify(error.requestData, null, 2)}
-                            </pre>
-                          </div>
-                        )}
-                        {error.fullLLMResponse && (
-                          <div>
-                            <p className="text-sm font-medium mb-2">Full LLM Response:</p>
-                            <pre className="text-xs bg-muted p-3 rounded overflow-x-auto max-h-96">
-                              {error.fullLLMResponse}
-                            </pre>
-                          </div>
-                        )}
-                        {error.userId && (
-                          <p className="text-xs text-muted-foreground">User ID: {error.userId}</p>
-                        )}
-                        {error.userAgent && (
-                          <p className="text-xs text-muted-foreground">User Agent: {error.userAgent}</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))
+                      </Card>
+                    )
+                  })
                 )}
               </div>
             </TabsContent>
 
             <TabsContent value="sentences" className="space-y-4 mt-4">
+              {recentSentences.length > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllSentences}
+                      className="flex items-center gap-2 text-xs md:text-sm"
+                    >
+                      {selectedSentences.size === recentSentences.length ? (
+                        <CheckSquare className="h-3 w-3 md:h-4 md:w-4" />
+                      ) : (
+                        <Square className="h-3 w-3 md:h-4 md:w-4" />
+                      )}
+                      <span className="hidden sm:inline">{selectedSentences.size === recentSentences.length ? 'Deselect All' : 'Select All'}</span>
+                      <span className="sm:hidden">{selectedSentences.size === recentSentences.length ? 'Deselect' : 'Select'}</span>
+                    </Button>
+                    {selectedSentences.size > 0 && (
+                      <span className="text-xs md:text-sm text-muted-foreground">
+                        {selectedSentences.size} selected
+                      </span>
+                    )}
+                  </div>
+                  {selectedSentences.size > 0 && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteClick(Array.from(selectedSentences), 'sentences', 'sentence')}
+                      className="flex items-center gap-2 text-xs md:text-sm"
+                    >
+                      <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+                      <span className="hidden sm:inline">Delete Selected ({selectedSentences.size})</span>
+                      <span className="sm:hidden">Delete ({selectedSentences.size})</span>
+                    </Button>
+                  )}
+                </div>
+              )}
               <div className="space-y-4">
                 {recentSentences.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No sentences found</p>
                 ) : (
-                  recentSentences.map((sentence) => (
-                    <Card key={sentence.id}>
-                      <CardHeader>
-                        <CardTitle className="text-base">{sentence.sentence}</CardTitle>
-                        <p className="text-xs text-muted-foreground">
-                          {formatTimestamp(sentence.timestamp)}
-                        </p>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-xs text-muted-foreground">User ID: {sentence.userId}</p>
-                        <p className="text-xs text-muted-foreground">ID: {sentence.id}</p>
-                      </CardContent>
-                    </Card>
-                  ))
+                  recentSentences.map((sentence) => {
+                    const isExpanded = expandedSentences.has(sentence.id)
+                    const isSelected = selectedSentences.has(sentence.id)
+                    return (
+                      <Card key={sentence.id}>
+                        <CardHeader>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  const newSet = new Set(selectedSentences)
+                                  if (newSet.has(sentence.id)) {
+                                    newSet.delete(sentence.id)
+                                  } else {
+                                    newSet.add(sentence.id)
+                                  }
+                                  setSelectedSentences(newSet)
+                                }}
+                                className="h-6 w-6 mt-1"
+                                title={isSelected ? "Deselect" : "Select"}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <Square className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <div 
+                                className="flex-1 cursor-pointer"
+                                onClick={() => {
+                                  const newSet = new Set(expandedSentences)
+                                  if (newSet.has(sentence.id)) {
+                                    newSet.delete(sentence.id)
+                                  } else {
+                                    newSet.add(sentence.id)
+                                  }
+                                  setExpandedSentences(newSet)
+                                }}
+                              >
+                                <div className="flex items-center gap-2 mb-2">
+                                  <CardTitle className="text-base">{sentence.sentence}</CardTitle>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const newSet = new Set(expandedSentences)
+                                      if (newSet.has(sentence.id)) {
+                                        newSet.delete(sentence.id)
+                                      } else {
+                                        newSet.add(sentence.id)
+                                      }
+                                      setExpandedSentences(newSet)
+                                    }}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatTimestamp(sentence.timestamp)}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteSentence(sentence.id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              title="Delete this sentence"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        {isExpanded && (
+                          <CardContent>
+                            <p className="text-xs text-muted-foreground">User ID: {sentence.userId}</p>
+                            <p className="text-xs text-muted-foreground">ID: {sentence.id}</p>
+                            {sentence.analysis && (
+                              <div className="mt-2">
+                                <p className="text-xs font-medium mb-1">Analysis:</p>
+                                <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-48">
+                                  {JSON.stringify(sentence.analysis, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </CardContent>
+                        )}
+                      </Card>
+                    )
+                  })
                 )}
               </div>
             </TabsContent>
 
             <TabsContent value="quizzes" className="space-y-4 mt-4">
+              {recentQuizzes.length > 0 && (
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={selectAllQuizzes}
+                      className="flex items-center gap-2 text-xs md:text-sm"
+                    >
+                      {selectedQuizzes.size === recentQuizzes.length ? (
+                        <CheckSquare className="h-3 w-3 md:h-4 md:w-4" />
+                      ) : (
+                        <Square className="h-3 w-3 md:h-4 md:w-4" />
+                      )}
+                      <span className="hidden sm:inline">{selectedQuizzes.size === recentQuizzes.length ? 'Deselect All' : 'Select All'}</span>
+                      <span className="sm:hidden">{selectedQuizzes.size === recentQuizzes.length ? 'Deselect' : 'Select'}</span>
+                    </Button>
+                    {selectedQuizzes.size > 0 && (
+                      <span className="text-xs md:text-sm text-muted-foreground">
+                        {selectedQuizzes.size} selected
+                      </span>
+                    )}
+                  </div>
+                  {selectedQuizzes.size > 0 && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDeleteClick(Array.from(selectedQuizzes), 'quizzes', 'quiz')}
+                      className="flex items-center gap-2 text-xs md:text-sm"
+                    >
+                      <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+                      <span className="hidden sm:inline">Delete Selected ({selectedQuizzes.size})</span>
+                      <span className="sm:hidden">Delete ({selectedQuizzes.size})</span>
+                    </Button>
+                  )}
+                </div>
+              )}
               <div className="space-y-4">
                 {recentQuizzes.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No quizzes found</p>
                 ) : (
-                  recentQuizzes.map((quiz) => (
-                    <Card key={quiz.id}>
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-base">
-                            Score: {quiz.score} / {quiz.totalQuestions}
-                          </CardTitle>
-                          <Badge variant={quiz.score >= 80 ? "default" : quiz.score >= 60 ? "secondary" : "destructive"}>
-                            {quiz.scoreCategory}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {formatTimestamp(quiz.timestamp)}
-                        </p>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm mb-2">{quiz.sentenceText}</p>
-                        <p className="text-xs text-muted-foreground">User ID: {quiz.userId}</p>
-                        <p className="text-xs text-muted-foreground">Sentence ID: {quiz.sentenceId}</p>
-                      </CardContent>
-                    </Card>
-                  ))
+                  recentQuizzes.map((quiz) => {
+                    const isExpanded = expandedQuizzes.has(quiz.id)
+                    const isSelected = selectedQuizzes.has(quiz.id)
+                    return (
+                      <Card key={quiz.id}>
+                        <CardHeader>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  const newSet = new Set(selectedQuizzes)
+                                  if (newSet.has(quiz.id)) {
+                                    newSet.delete(quiz.id)
+                                  } else {
+                                    newSet.add(quiz.id)
+                                  }
+                                  setSelectedQuizzes(newSet)
+                                }}
+                                className="h-6 w-6 mt-1"
+                                title={isSelected ? "Deselect" : "Select"}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className="h-4 w-4 text-primary" />
+                                ) : (
+                                  <Square className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <div 
+                                className="flex-1 cursor-pointer"
+                                onClick={() => {
+                                  const newSet = new Set(expandedQuizzes)
+                                  if (newSet.has(quiz.id)) {
+                                    newSet.delete(quiz.id)
+                                  } else {
+                                    newSet.add(quiz.id)
+                                  }
+                                  setExpandedQuizzes(newSet)
+                                }}
+                              >
+                                <div className="flex items-center gap-2 mb-2">
+                                  <CardTitle className="text-base">
+                                    Score: {quiz.score} / {quiz.totalQuestions}
+                                  </CardTitle>
+                                  <Badge variant={quiz.score >= 80 ? "default" : quiz.score >= 60 ? "secondary" : "destructive"}>
+                                    {quiz.scoreCategory}
+                                  </Badge>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const newSet = new Set(expandedQuizzes)
+                                      if (newSet.has(quiz.id)) {
+                                        newSet.delete(quiz.id)
+                                      } else {
+                                        newSet.add(quiz.id)
+                                      }
+                                      setExpandedQuizzes(newSet)
+                                    }}
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatTimestamp(quiz.timestamp)}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteQuiz(quiz.id)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              title="Delete this quiz"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        {isExpanded && (
+                          <CardContent>
+                            <p className="text-sm mb-2">{quiz.sentenceText}</p>
+                            <p className="text-xs text-muted-foreground">User ID: {quiz.userId}</p>
+                            <p className="text-xs text-muted-foreground">Sentence ID: {quiz.sentenceId}</p>
+                            {quiz.questions && (
+                              <div className="mt-2">
+                                <p className="text-xs font-medium mb-1">Questions:</p>
+                                <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-48">
+                                  {JSON.stringify(quiz.questions, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                          </CardContent>
+                        )}
+                      </Card>
+                    )
+                  })
                 )}
               </div>
             </TabsContent>
@@ -1172,10 +1903,24 @@ export default function AdminDashboard() {
             <TabsContent value="users" className="space-y-4 mt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    All Users ({allUsers.length})
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="h-5 w-5" />
+                      All Users ({allUsers.length})
+                    </CardTitle>
+                    {filteredUsers.length > 0 && selectedUsers.size > 0 && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteClick(Array.from(selectedUsers), 'user_progress', 'user')}
+                        className="flex items-center gap-2 text-xs md:text-sm"
+                      >
+                        <Trash2 className="h-3 w-3 md:h-4 md:w-4" />
+                        <span className="hidden sm:inline">Delete Selected ({selectedUsers.size})</span>
+                        <span className="sm:hidden">Delete ({selectedUsers.size})</span>
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="mb-4">
@@ -1188,38 +1933,109 @@ export default function AdminDashboard() {
                         className="pl-8"
                       />
                     </div>
+                    {filteredUsers.length > 0 && (
+                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={selectAllUsers}
+                          className="flex items-center gap-2 text-xs md:text-sm"
+                        >
+                          {selectedUsers.size === filteredUsers.length ? (
+                            <CheckSquare className="h-3 w-3 md:h-4 md:w-4" />
+                          ) : (
+                            <Square className="h-3 w-3 md:h-4 md:w-4" />
+                          )}
+                          <span className="hidden sm:inline">{selectedUsers.size === filteredUsers.length ? 'Deselect All' : 'Select All'}</span>
+                          <span className="sm:hidden">{selectedUsers.size === filteredUsers.length ? 'Deselect' : 'Select'}</span>
+                        </Button>
+                        {selectedUsers.size > 0 && (
+                          <span className="text-xs md:text-sm text-muted-foreground">
+                            {selectedUsers.size} selected
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2 max-h-[600px] overflow-y-auto">
                     {filteredUsers.length === 0 ? (
                       <p className="text-sm text-muted-foreground">No users found</p>
                     ) : (
-                      filteredUsers.map((user) => (
-                        <Card 
-                          key={user.id} 
-                          className="cursor-pointer hover:bg-accent transition-colors"
-                          onClick={() => setSelectedUserId(user.userId)}
-                        >
-                          <CardContent className="p-4">
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <p className="font-medium">{user.userId}</p>
-                                <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
-                                  <span>Sentences: {user.totalSentences || 0}</span>
-                                  <span>Quizzes: {user.totalQuizzes || 0}</span>
-                                  <span>Score: {user.totalQuizScore || 0}</span>
-                                  <span>Streak: {user.currentStreak || 0}</span>
+                      filteredUsers.map((user) => {
+                        const isSelected = selectedUsers.has(user.id)
+                        return (
+                          <Card 
+                            key={user.id} 
+                            className={`hover:bg-accent transition-colors ${isSelected ? 'ring-2 ring-primary' : ''}`}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 flex-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      const newSet = new Set(selectedUsers)
+                                      if (newSet.has(user.id)) {
+                                        newSet.delete(user.id)
+                                      } else {
+                                        newSet.add(user.id)
+                                      }
+                                      setSelectedUsers(newSet)
+                                    }}
+                                    className="h-6 w-6"
+                                    title={isSelected ? "Deselect" : "Select"}
+                                  >
+                                    {isSelected ? (
+                                      <CheckSquare className="h-4 w-4 text-primary" />
+                                    ) : (
+                                      <Square className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                  <div 
+                                    className="flex-1 cursor-pointer"
+                                    onClick={() => setSelectedUserId(user.userId)}
+                                  >
+                                    <p className="font-medium">{user.userId}</p>
+                                    <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
+                                      <span>Sentences: {user.totalSentences || 0}</span>
+                                      <span>Quizzes: {user.totalQuizzes || 0}</span>
+                                      <span>Score: {user.totalQuizScore || 0}</span>
+                                      <span>Streak: {user.currentStreak || 0}</span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Last Active: {formatTimestamp(user.updatedAt)}
+                                    </p>
+                                  </div>
                                 </div>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Last Active: {formatTimestamp(user.updatedAt)}
-                                </p>
+                                <div className="flex items-center gap-2">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => setSelectedUserId(user.userId)}
+                                    title="View details"
+                                  >
+                                    <ArrowLeft className="h-4 w-4 rotate-180" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      deleteUser(user.id)
+                                    }}
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    title="Delete this user"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
-                              <Button variant="ghost" size="icon">
-                                <ArrowLeft className="h-4 w-4 rotate-180" />
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))
+                            </CardContent>
+                          </Card>
+                        )
+                      })
                     )}
                   </div>
                 </CardContent>
@@ -1266,6 +2082,7 @@ export default function AdminDashboard() {
           </Tabs>
         </div>
       </div>
-    )
-  }
+    </>
+  )
+}
 
