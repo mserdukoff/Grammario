@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react"
 import { onAuthStateChanged, type User } from "firebase/auth"
 import { collection, query, where, getDocs, addDoc, deleteDoc, doc, Timestamp } from "firebase/firestore"
-import { auth, db } from "../lib/firebase"
-import Sidebar from "@/components/Sidebar"
+import { auth, db } from "@/lib/firebase"
+import { AppSidebar } from "@/components/AppSidebar"
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import Header from "@/components/Header"
 import SentenceInput from "@/components/SentenceInput"
 import SentenceDisplay from "@/components/SentenceDisplay"
@@ -18,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Sentence, LLMResponse, QuizResult } from "@/types"
 import { Achievement } from "@/types/progress"
 import { ProgressTracker } from "@/lib/progress-tracker"
-import { cn, getTimestampMillis } from "@/lib/utils"
+import { getTimestampMillis } from "@/lib/utils"
 import ProgressDashboard from "@/components/ProgressDashboard"
 import AchievementNotification from "@/components/AchievementNotification"
 import QuizGenerator from "@/components/QuizGenerator"
@@ -55,7 +56,7 @@ const unflattenMatrix = (flat: number[], size: number) => {
   return matrix;
 };
 
-export default function Home() {
+export default function AnalyzePage() {
   const [user, setUser] = useState<User | null>(null)
   const [sentences, setSentences] = useState<Sentence[]>([])
   const [selectedSentence, setSelectedSentence] = useState<Sentence | null>(null)
@@ -83,6 +84,8 @@ export default function Home() {
         setSentences([])
         setProgressTracker(null)
         setQuizResults([])
+        setCurrentSentence(null)
+        setSelectedSentence(null)
       }
     })
 
@@ -92,12 +95,15 @@ export default function Home() {
 
 
   const fetchSentences = async (userId: string) => {
+    console.log("Fetching sentences for userId:", userId);
     try {
       const q = query(collection(db, "sentences"), where("userId", "==", userId))
       const querySnapshot = await getDocs(q)
+      console.log("Raw documents found:", querySnapshot.size);
       
       const sentenceList = querySnapshot.docs.map((doc) => {
         const data = doc.data()
+        console.log("Processing doc:", doc.id, "Timestamp type:", typeof data.timestamp, data.timestamp);
         let llmResponse = data.llmResponse;
 
         // Ensure the response has the correct structure
@@ -115,9 +121,17 @@ export default function Home() {
           id: doc.id,
           llmResponse
         } as Sentence
+      }).filter(sentence => {
+          const match = sentence.userId === userId;
+          if (!match) console.warn("Filtered out sentence due to userId mismatch:", sentence.id, sentence.userId);
+          return match;
       })
       
-      const sortedSentences = sentenceList.sort((a, b) => getTimestampMillis(b.timestamp) - getTimestampMillis(a.timestamp))
+      const sortedSentences = sentenceList.sort((a, b) => {
+        const timeA = getTimestampMillis(a.timestamp)
+        const timeB = getTimestampMillis(b.timestamp)
+        return timeB - timeA;
+      })
       setSentences(sortedSentences)
     } catch (error) {
       console.error("Error fetching sentences:", error)
@@ -320,131 +334,165 @@ export default function Home() {
     }
   }
 
-  // Convert sentences to the format expected by Sidebar
-  const sidebarSentences = sentences.map(sentence => sentence)
-
   if (isLoading) {
-    return <div>Loading...</div>
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            <div className="flex flex-col items-center gap-2">
+                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                 <p className="text-sm text-muted-foreground">Loading...</p>
+            </div>
+        </div>
+    )
   }
 
   return (
-    <div className="flex h-screen">
-      <Sidebar
+    <SidebarProvider>
+      <AppSidebar
         sentences={sentences}
         onSelectSentence={selectSentence}
         onDeleteSentence={deleteSentence}
         onNewSentence={handleNewSentence}
         onShowProgress={handleShowProgress}
         user={user}
-        initialIsOpen={!isMobile}
       />
-      <div className="flex-1 flex flex-col h-full">
-        <Header user={user} />
-        <main className="flex-1 relative">
-          <div className="absolute inset-0">
-            {selectedSentence ? (
-              <SentenceDisplay 
-                data={selectedSentence.llmResponse} 
-                title="Selected Sentence"
-                sentence={selectedSentence.sentence}
-                analysisMetadata={selectedSentence.analysisMetadata}
-                onQuizComplete={async (score, total) => {
-                  if (progressTracker) {
-                    const achievements = await progressTracker.recordQuizCompletion(score, total, selectedLanguage)
-                    if (achievements.length > 0) {
-                      setNewAchievements(achievements)
-                    }
-                  }
-                }}
-                onVocabularyExpand={async (word) => {
-                  if (progressTracker) {
-                    const achievements = await progressTracker.recordVocabularyExpansion(word, selectedLanguage)
-                    if (achievements.length > 0) {
-                      setNewAchievements(achievements)
-                    }
-                  }
-                }}
-              />
-            ) : currentSentence ? (
-              <SentenceDisplay 
-                data={currentSentence.llmResponse} 
-                title="Analyzed Sentence"
-                sentence={currentSentence.sentence}
-                analysisMetadata={currentSentence.analysisMetadata}
-                onQuizComplete={async (score, total) => {
-                  if (progressTracker) {
-                    const achievements = await progressTracker.recordQuizCompletion(score, total, selectedLanguage)
-                    if (achievements.length > 0) {
-                      setNewAchievements(achievements)
-                    }
-                  }
-                }}
-                onVocabularyExpand={async (word) => {
-                  if (progressTracker) {
-                    const achievements = await progressTracker.recordVocabularyExpansion(word, selectedLanguage)
-                    if (achievements.length > 0) {
-                      setNewAchievements(achievements)
-                    }
-                  }
-                }}
-              />
-            ) : null}
-          </div>
-          {/* Top-left toolbar for sentence controls */}
-          <div className="absolute top-4 left-4 z-30 flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-            <Button 
-              variant="outline" 
-              size="icon"
-              onClick={() => setShowInput(!showInput)}
-              title="New Sentence"
-              className="dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              +
-            </Button>
-            {(selectedSentence || currentSentence) && (
-              <Button 
-                variant="outline" 
-                size="icon"
-                onClick={startQuiz}
-                title="Start Quiz"
-                className="dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
-                🎯
-              </Button>
-            )}
-            <LanguageSelector 
-              onLanguageSelect={handleLanguageSelect}
-              onDemoSentenceSelect={handleDemoSentenceSelect}
-            />
-          </div>
-          {/* Sentence input form */}
-          {showInput && (
-            <div className="absolute inset-0 z-40 bg-background/80 dark:bg-gray-800/80 backdrop-blur-sm">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] sm:w-[500px]">
-                <SentenceInput
-                  onSubmit={addSentence}
-                  onCancel={() => setShowInput(false)}
-                  selectedLanguage={selectedLanguage}
-                  onLanguageChange={setSelectedLanguage}
-                />
-              </div>
+      <SidebarInset>
+        <div className="flex flex-col h-full">
+            <div className="relative">
+                 <Header user={user} />
+                 {/* Sidebar Trigger positioned within the header area or just below */}
+                 <div className="absolute top-4 left-4 z-50 md:hidden">
+                    <SidebarTrigger />
+                 </div>
             </div>
-          )}
-          {/* Quiz modal */}
-          {showQuiz && (selectedSentence || currentSentence) && (
-            <div className="absolute inset-0 z-40 bg-background/80 dark:bg-gray-800/80 backdrop-blur-sm">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] sm:w-[600px] max-h-[90vh] overflow-y-auto">
-                <QuizGenerator
-                  sentence={selectedSentence || currentSentence!}
-                  onQuizComplete={handleQuizComplete}
-                  onClose={() => setShowQuiz(false)}
-                />
-              </div>
-            </div>
-          )}
+            
+            <main className="flex-1 relative overflow-y-auto">
+                 {/* Top Controls */}
+                 <div className="p-4 flex flex-wrap gap-2 items-center justify-between border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-20">
+                    <div className="flex items-center gap-2">
+                        <SidebarTrigger className="hidden md:flex" />
+                        <Button 
+                        onClick={() => setShowInput(!showInput)}
+                        className="gap-2"
+                        >
+                        <span className="text-lg leading-none">+</span>
+                        New Analysis
+                        </Button>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                         <LanguageSelector 
+                            onLanguageSelect={handleLanguageSelect}
+                            onDemoSentenceSelect={handleDemoSentenceSelect}
+                        />
+                         {(selectedSentence || currentSentence) && (
+                            <Button 
+                                variant="outline" 
+                                onClick={startQuiz}
+                                className="gap-2"
+                            >
+                                <span>🎯</span>
+                                Quiz
+                            </Button>
+                        )}
+                    </div>
+                 </div>
 
-        </main>
-      </div>
+                <div className="min-h-full p-4 md:p-8">
+                    {selectedSentence ? (
+                    <SentenceDisplay 
+                        data={selectedSentence.llmResponse} 
+                        title="Selected Sentence"
+                        sentence={selectedSentence.sentence}
+                        analysisMetadata={selectedSentence.analysisMetadata}
+                        onQuizComplete={async (score, total) => {
+                        if (progressTracker) {
+                            const achievements = await progressTracker.recordQuizCompletion(score, total, selectedLanguage)
+                            if (achievements.length > 0) {
+                            setNewAchievements(achievements)
+                            }
+                        }
+                        }}
+                        onVocabularyExpand={async (word) => {
+                        if (progressTracker) {
+                            const achievements = await progressTracker.recordVocabularyExpansion(word, selectedLanguage)
+                            if (achievements.length > 0) {
+                            setNewAchievements(achievements)
+                            }
+                        }
+                        }}
+                    />
+                    ) : currentSentence ? (
+                    <SentenceDisplay 
+                        data={currentSentence.llmResponse} 
+                        title="Analyzed Sentence"
+                        sentence={currentSentence.sentence}
+                        analysisMetadata={currentSentence.analysisMetadata}
+                        onQuizComplete={async (score, total) => {
+                        if (progressTracker) {
+                            const achievements = await progressTracker.recordQuizCompletion(score, total, selectedLanguage)
+                            if (achievements.length > 0) {
+                            setNewAchievements(achievements)
+                            }
+                        }
+                        }}
+                        onVocabularyExpand={async (word) => {
+                        if (progressTracker) {
+                            const achievements = await progressTracker.recordVocabularyExpansion(word, selectedLanguage)
+                            if (achievements.length > 0) {
+                            setNewAchievements(achievements)
+                            }
+                        }
+                        }}
+                    />
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-4">
+                            <div className="p-6 bg-muted/30 rounded-full">
+                                <TrendingUp className="h-12 w-12 text-muted-foreground" />
+                            </div>
+                            <h2 className="text-2xl font-semibold">Ready to Analyze?</h2>
+                            <p className="text-muted-foreground max-w-md">
+                                Start by adding a new sentence or selecting one from your history.
+                            </p>
+                            <Button size="lg" onClick={() => setShowInput(true)}>
+                                Analyze a Sentence
+                            </Button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Sentence input modal */}
+                {showInput && (
+                    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="w-full max-w-2xl animate-in zoom-in-95 duration-200">
+                            <SentenceInput
+                            onSubmit={addSentence}
+                            onCancel={() => setShowInput(false)}
+                            selectedLanguage={selectedLanguage}
+                            onLanguageChange={setSelectedLanguage}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Quiz modal */}
+                {showQuiz && (selectedSentence || currentSentence) && (
+                    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200 bg-background rounded-lg shadow-xl border">
+                            <div className="p-4 border-b flex justify-between items-center sticky top-0 bg-background z-10">
+                                 <h2 className="text-lg font-semibold">Grammar Quiz</h2>
+                                 <Button variant="ghost" size="sm" onClick={() => setShowQuiz(false)}>Close</Button>
+                            </div>
+                            <QuizGenerator
+                            sentence={selectedSentence || currentSentence!}
+                            onQuizComplete={handleQuizComplete}
+                            onClose={() => setShowQuiz(false)}
+                            />
+                        </div>
+                    </div>
+                )}
+            </main>
+        </div>
+      </SidebarInset>
       <Toaster />
       
       {/* Progress Dashboard Modal */}
@@ -462,7 +510,6 @@ export default function Home() {
           onClose={() => setNewAchievements([])}
         />
       )}
-    </div>
+    </SidebarProvider>
   )
 }
-

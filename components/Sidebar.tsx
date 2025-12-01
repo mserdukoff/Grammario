@@ -3,6 +3,7 @@ import Logo from './Logo'
 import { Timestamp } from 'firebase/firestore'
 import { Button } from '@/components/ui/button'
 import { Trash2, Plus, History, ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react'
+import { formatTimestamp } from '@/lib/utils'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -129,13 +130,10 @@ export default function Sidebar({ sentences, onDeleteSentence, onSelectSentence,
                   <>
                     <div className="flex-grow mr-2 overflow-hidden">
                       <p className="text-sm truncate text-foreground">
-                        {Object.entries(sentence.llmResponse.result?.sentence || sentence.llmResponse.sentence || {})
-                          .sort((a, b) => a[1].position - b[1].position)
-                          .map(([wordKey]) => wordKey.split('_')[0])
-                          .join(' ')}
+                        {sentence.sentence}
                       </p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {sentence.timestamp.toDate().toLocaleString()}
+                        {formatTimestamp(sentence.timestamp)}
                       </p>
                     </div>
                     <Button

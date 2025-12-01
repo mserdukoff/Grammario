@@ -40,6 +40,7 @@ import {
 import { collection, getDocs, query, orderBy, limit, where, Timestamp, deleteDoc, doc } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useRouter } from 'next/navigation'
+import { getTimestampMillis, formatTimestamp } from '@/lib/utils'
 
 interface ErrorLog {
   id: string;
@@ -183,8 +184,8 @@ export default function AdminDashboard() {
           })) as AdminLog[]
           // Sort manually by timestamp or createdAt
           logs.sort((a, b) => {
-            const aTime = a.timestamp?.toMillis() || a.createdAt?.toMillis() || 0
-            const bTime = b.timestamp?.toMillis() || b.createdAt?.toMillis() || 0
+            const aTime = getTimestampMillis(a.timestamp) || getTimestampMillis(a.createdAt)
+            const bTime = getTimestampMillis(b.timestamp) || getTimestampMillis(b.createdAt)
             return bTime - aTime
           })
           setAdminLogs(logs.slice(0, 100))
@@ -386,8 +387,8 @@ export default function AdminDashboard() {
         const docs = snapshot.docs
         const latest = docs.length > 0 
           ? docs.sort((a, b) => {
-              const aTime = a.data().timestamp?.toMillis() || a.data().createdAt?.toMillis() || 0
-              const bTime = b.data().timestamp?.toMillis() || b.data().createdAt?.toMillis() || 0
+              const aTime = getTimestampMillis(a.data().timestamp) || getTimestampMillis(a.data().createdAt)
+              const bTime = getTimestampMillis(b.data().timestamp) || getTimestampMillis(b.data().createdAt)
               return bTime - aTime
             })[0]?.data().timestamp || docs[0]?.data().createdAt
           : undefined
@@ -633,8 +634,8 @@ export default function AdminDashboard() {
 
       // Sort by updatedAt if available (descending), otherwise by userId
       usersWithData.sort((a, b) => {
-        const aTime = a.updatedAt?.toMillis() || 0
-        const bTime = b.updatedAt?.toMillis() || 0
+        const aTime = getTimestampMillis(a.updatedAt)
+        const bTime = getTimestampMillis(b.updatedAt)
         if (aTime !== bTime) return bTime - aTime // Descending order
         return (a.userId || '').localeCompare(b.userId || '')
       })
@@ -703,8 +704,8 @@ export default function AdminDashboard() {
           }))
           // Sort manually (descending - newest first)
           sentences.sort((a, b) => {
-            const aTime = a.timestamp?.toMillis() || 0
-            const bTime = b.timestamp?.toMillis() || 0
+            const aTime = getTimestampMillis(a.timestamp)
+            const bTime = getTimestampMillis(b.timestamp)
             return bTime - aTime // Descending order
           })
         } catch (fallbackError) {
@@ -742,8 +743,8 @@ export default function AdminDashboard() {
           }))
           // Sort manually
           quizzes.sort((a, b) => {
-            const aTime = a.timestamp?.toMillis() || 0
-            const bTime = b.timestamp?.toMillis() || 0
+            const aTime = getTimestampMillis(a.timestamp)
+            const bTime = getTimestampMillis(b.timestamp)
             return bTime - aTime
           })
         } catch (fallbackError) {
@@ -782,8 +783,8 @@ export default function AdminDashboard() {
           }))
           // Sort manually
           sessions.sort((a, b) => {
-            const aTime = a.startTime?.toMillis() || 0
-            const bTime = b.startTime?.toMillis() || 0
+            const aTime = getTimestampMillis(a.startTime)
+            const bTime = getTimestampMillis(b.startTime)
             return bTime - aTime
           })
         } catch (fallbackError) {
@@ -818,8 +819,8 @@ export default function AdminDashboard() {
           }))
           // Sort manually
           achievements.sort((a, b) => {
-            const aTime = a.unlockedAt?.toMillis() || 0
-            const bTime = b.unlockedAt?.toMillis() || 0
+            const aTime = getTimestampMillis(a.unlockedAt)
+            const bTime = getTimestampMillis(b.unlockedAt)
             return bTime - aTime
           })
         } catch (fallbackError) {
@@ -847,12 +848,6 @@ export default function AdminDashboard() {
       loadUserDetail(selectedUserId)
     }
   }, [selectedUserId])
-
-  const formatTimestamp = (timestamp: Timestamp | undefined) => {
-    if (!timestamp) return 'N/A'
-    const date = timestamp.toDate()
-    return date.toLocaleString()
-  }
 
   const getErrorSeverity = (error: ErrorLog) => {
     if (error.httpStatus && error.httpStatus >= 500) return 'destructive'

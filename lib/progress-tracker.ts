@@ -2,6 +2,7 @@ import { collection, doc, setDoc, getDoc, updateDoc, query, where, orderBy, limi
 import { db } from './firebase';
 import { UserProgress, StudySession, Achievement } from '@/types/progress';
 import { ACHIEVEMENTS, checkAchievements } from './achievements';
+import { getTimestampMillis } from './utils';
 
 export class ProgressTracker {
   private userId: string;
@@ -62,7 +63,7 @@ export class ProgressTracker {
 
     // Update streak
     const today = new Date().toDateString();
-    const lastActive = progress.lastActiveDate.toDate().toDateString();
+    const lastActive = new Date(getTimestampMillis(progress.lastActiveDate)).toDateString();
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
     
     let newStreak = progress.currentStreak;
@@ -218,7 +219,7 @@ export class ProgressTracker {
     
     // Sort by startTime in memory and limit results
     return sessions
-      .sort((a, b) => b.startTime.toMillis() - a.startTime.toMillis())
+      .sort((a, b) => getTimestampMillis(b.startTime) - getTimestampMillis(a.startTime))
       .slice(0, limit_count);
   }
 
